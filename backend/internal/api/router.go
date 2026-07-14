@@ -51,6 +51,10 @@ func (h *Handler) SetupRouter() *gin.Engine {
 		api.POST("/scan", h.ScanSongs)
 		api.GET("/songs", h.ListSongs)
 		api.GET("/songs/:id", h.GetSong)
+
+		// 播放状态 API
+		api.GET("/playback/:identityId", h.GetPlaybackState)
+		api.POST("/playback/:identityId", h.SavePlaybackState)
 	}
 
 	// 静态文件服务
