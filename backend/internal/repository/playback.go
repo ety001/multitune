@@ -40,9 +40,19 @@ func (r *PlaybackRepo) GetByIdentity(identityID string) (*model.PlaybackState, e
 	return &p, nil
 }
 
+// stringToNullString 将字符串转为 sql.NullString，空字符串为 NULL
+func stringToNullString(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{Valid: false}
+	}
+	return sql.NullString{String: s, Valid: true}
+}
+
 // Save 保存或更新播放状态
 func (r *PlaybackRepo) Save(identityID, playlistID, songID string, position int, mode string) (*model.PlaybackState, error) {
 	now := time.Now().Unix()
+	pl := stringToNullString(playlistID)
+	sg := stringToNullString(songID)
 
 	_, err := r.db.Exec(`
 		INSERT INTO playback_states (identity_id, playlist_id, song_id, position, mode, updated_at)
@@ -53,9 +63,57 @@ func (r *PlaybackRepo) Save(identityID, playlistID, songID string, position int,
 			position = excluded.position,
 			mode = excluded.mode,
 			updated_at = excluded.updated_at
-	`, identityID, playlistID, songID, position, mode, now)
+	`, identityID, pl, sg, position, mode, now)
 	if err != nil {
 		return nil, fmt.Errorf("保存播放状态失败: %w", err)
+	}
+
+	return r.GetByIdentity(identityID)
+}
+
+// SaveWithProgress 在单个事务内保存播放状态和单曲进度
+func (r *PlaybackRepo) SaveWithProgress(identityID, playlistID, songID string, position int, mode string) (*model.PlaybackState, error) {
+	now := time.Now().Unix()
+	pl := stringToNullString(playlistID)
+	sg := stringToNullString(songID)
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("开始事务失败: %w", err)
+	}
+	defer tx.Rollback()
+
+	// 保存播放状态
+	_, err = tx.Exec(`
+		INSERT INTO playback_states (identity_id, playlist_id, song_id, position, mode, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(identity_id) DO UPDATE SET
+			playlist_id = excluded.playlist_id,
+			song_id = excluded.song_id,
+			position = excluded.position,
+			mode = excluded.mode,
+			updated_at = excluded.updated_at
+	`, identityID, pl, sg, position, mode, now)
+	if err != nil {
+		return nil, fmt.Errorf("保存播放状态失败: %w", err)
+	}
+
+	// 同时保存单曲进度（仅当 songID 非空）
+	if songID != "" {
+		_, err = tx.Exec(`
+			INSERT INTO song_progress (identity_id, song_id, position, updated_at)
+			VALUES (?, ?, ?, ?)
+			ON CONFLICT(identity_id, song_id) DO UPDATE SET
+				position = excluded.position,
+				updated_at = excluded.updated_at
+		`, identityID, songID, position, now)
+		if err != nil {
+			return nil, fmt.Errorf("保存单曲进度失败: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("提交播放状态事务失败: %w", err)
 	}
 
 	return r.GetByIdentity(identityID)

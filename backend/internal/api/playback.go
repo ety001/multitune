@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/ety001/multitune/internal/model"
@@ -20,6 +21,18 @@ const (
 	ErrCodePlaybackNotFound = 5001
 )
 
+// validModes 合法的播放模式
+var validModes = map[string]bool{
+	"order":       true,
+	"random":      true,
+	"single-loop": true,
+}
+
+// isValidMode 校验播放模式
+func isValidMode(mode string) bool {
+	return validModes[mode]
+}
+
 // GetPlaybackState GET /api/playback/:identityId
 func (h *Handler) GetPlaybackState(c *gin.Context) {
 	identityID := c.Param("identityId")
@@ -27,6 +40,7 @@ func (h *Handler) GetPlaybackState(c *gin.Context) {
 	// 校验身份存在
 	identity, err := h.identityRepo.GetByID(identityID)
 	if err != nil {
+		slog.Error("查询身份失败", "error", err, "id", identityID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -43,6 +57,7 @@ func (h *Handler) GetPlaybackState(c *gin.Context) {
 
 	state, err := h.playbackRepo.GetByIdentity(identityID)
 	if err != nil {
+		slog.Error("查询播放状态失败", "error", err, "identity_id", identityID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -77,6 +92,7 @@ func (h *Handler) SavePlaybackState(c *gin.Context) {
 	// 校验身份存在
 	identity, err := h.identityRepo.GetByID(identityID)
 	if err != nil {
+		slog.Error("查询身份失败", "error", err, "id", identityID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -100,9 +116,19 @@ func (h *Handler) SavePlaybackState(c *gin.Context) {
 		return
 	}
 
+	// position 校验
+	if req.Position != nil && *req.Position < 0 {
+		c.JSON(http.StatusBadRequest, model.APIResponse{
+			Code:    9001,
+			Message: "播放位置不能为负数",
+		})
+		return
+	}
+
 	// 获取当前状态作为默认值
 	current, err := h.playbackRepo.GetByIdentity(identityID)
 	if err != nil {
+		slog.Error("查询当前播放状态失败", "error", err, "identity_id", identityID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -127,6 +153,7 @@ func (h *Handler) SavePlaybackState(c *gin.Context) {
 		if playlistID != "" {
 			playlist, err := h.playlistRepo.GetByID(playlistID)
 			if err != nil {
+				slog.Error("校验歌单失败", "error", err, "playlist_id", playlistID)
 				c.JSON(http.StatusInternalServerError, model.APIResponse{
 					Code:    9001,
 					Message: "内部错误",
@@ -147,6 +174,7 @@ func (h *Handler) SavePlaybackState(c *gin.Context) {
 		if songID != "" {
 			song, err := h.songRepo.GetByID(songID)
 			if err != nil {
+				slog.Error("校验歌曲失败", "error", err, "song_id", songID)
 				c.JSON(http.StatusInternalServerError, model.APIResponse{
 					Code:    9001,
 					Message: "内部错误",
@@ -170,7 +198,7 @@ func (h *Handler) SavePlaybackState(c *gin.Context) {
 	}
 
 	// 校验播放模式
-	if mode != "order" && mode != "random" && mode != "single-loop" {
+	if !isValidMode(mode) {
 		c.JSON(http.StatusBadRequest, model.APIResponse{
 			Code:    9001,
 			Message: "播放模式不合法",
@@ -178,24 +206,15 @@ func (h *Handler) SavePlaybackState(c *gin.Context) {
 		return
 	}
 
-	state, err := h.playbackRepo.Save(identityID, playlistID, songID, position, mode)
+	// 事务保存播放状态 + 单曲进度
+	state, err := h.playbackRepo.SaveWithProgress(identityID, playlistID, songID, position, mode)
 	if err != nil {
+		slog.Error("保存播放状态失败", "error", err, "identity_id", identityID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
 		})
 		return
-	}
-
-	// 同时保存单曲进度
-	if songID != "" {
-		if err := h.playbackRepo.SaveSongProgress(identityID, songID, position); err != nil {
-			c.JSON(http.StatusInternalServerError, model.APIResponse{
-				Code:    9001,
-				Message: "内部错误",
-			})
-			return
-		}
 	}
 
 	c.JSON(http.StatusOK, model.APIResponse{
