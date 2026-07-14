@@ -1,0 +1,7 @@
+/multitune-server
+*.db
+*.db-wal
+*.db-shm
+/data
+/covers
+/tmp
