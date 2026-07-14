@@ -38,6 +38,16 @@ func (h *Handler) SetupRouter() *gin.Engine {
 		api.GET("/playlists/:id", h.GetPlaylist)
 		api.PUT("/playlists/:id", h.UpdatePlaylist)
 		api.DELETE("/playlists/:id", h.DeletePlaylist)
+
+		// 文件浏览器 API
+		api.GET("/fs/sources", h.ListStorageSources)
+		api.GET("/fs/list", h.ListDirectory)
+		api.GET("/fs/search", h.SearchSongs)
+
+		// 歌曲与扫描 API
+		api.POST("/scan", h.ScanSongs)
+		api.GET("/songs", h.ListSongs)
+		api.GET("/songs/:id", h.GetSong)
 	}
 
 	// 静态文件服务

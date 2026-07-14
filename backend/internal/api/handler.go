@@ -4,6 +4,7 @@ import (
 	"github.com/ety001/multitune/internal/config"
 	"github.com/ety001/multitune/internal/db"
 	"github.com/ety001/multitune/internal/repository"
+	"github.com/ety001/multitune/internal/scanner"
 )
 
 // Handler API 处理器
@@ -12,14 +13,19 @@ type Handler struct {
 	db           *db.DB
 	identityRepo *repository.IdentityRepo
 	playlistRepo *repository.PlaylistRepo
+	songRepo     *repository.SongRepo
+	scanner      *scanner.Scanner
 }
 
 // NewHandler 创建处理器
 func NewHandler(cfg *config.Config, db *db.DB) *Handler {
+	songRepo := repository.NewSongRepo(db)
 	return &Handler{
 		cfg:          cfg,
 		db:           db,
 		identityRepo: repository.NewIdentityRepo(db),
 		playlistRepo: repository.NewPlaylistRepo(db),
+		songRepo:     songRepo,
+		scanner:      scanner.New(cfg.MediaRoot, songRepo, cfg.ScanFormats),
 	}
 }

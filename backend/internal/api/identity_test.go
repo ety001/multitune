@@ -18,12 +18,14 @@ func newTestHandler(t *testing.T) *Handler {
 	t.Helper()
 	cfg := &config.Config{
 		DataPath:                t.TempDir(),
+		MediaRoot:               t.TempDir(),
 		DatabaseName:            "test.db",
 		MaxIdentities:           20,
 		MaxPlaylistsPerIdentity: 50,
 		MaxSongsPerPlaylist:     1000,
 		GINMode:                 gin.TestMode,
 		StaticPath:              "/nonexistent",
+		ScanFormats:             []string{"mp3", "flac", "m4a", "aac", "ogg", "wav"},
 	}
 	database, err := db.New(cfg)
 	if err != nil {
