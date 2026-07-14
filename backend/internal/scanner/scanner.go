@@ -188,7 +188,7 @@ type ffprobeMetadata struct {
 
 // readWithFFProbe 使用 ffprobe 读取元数据
 func (s *Scanner) readWithFFProbe(path string) (*ffprobeMetadata, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "ffprobe",

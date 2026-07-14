@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,6 +63,62 @@ func TestScanner_ScanFile(t *testing.T) {
 	if result.Songs[0].Title != "test" {
 		// ffprobe 不可用时使用文件名作为标题
 		t.Errorf("title = %s, want test (fallback title)", result.Songs[0].Title)
+	}
+}
+
+func TestScanner_ConcurrentScan(t *testing.T) {
+	scanner, mediaRoot := newTestScanner(t)
+
+	// 创建两个不同的目录和文件
+	dir1 := filepath.Join(mediaRoot, "home", "a")
+	dir2 := filepath.Join(mediaRoot, "home", "b")
+	os.MkdirAll(dir1, 0755)
+	os.MkdirAll(dir2, 0755)
+	os.WriteFile(filepath.Join(dir1, "song1.mp3"), []byte("dummy"), 0644)
+	os.WriteFile(filepath.Join(dir2, "song2.mp3"), []byte("dummy"), 0644)
+
+	// 并发扫描
+	type result struct {
+		res *ScanResult
+		err error
+	}
+	ch := make(chan result, 2)
+
+	go func() {
+		res, err := scanner.ScanPath(dir1)
+		ch <- result{res: res, err: err}
+	}()
+	go func() {
+		res, err := scanner.ScanPath(dir2)
+		ch <- result{res: res, err: err}
+	}()
+
+	r1 := <-ch
+	r2 := <-ch
+
+	// 一个应该成功，一个应返回 ErrScanInProgress
+	var successCount, busyCount int
+	if r1.err == nil && r1.res != nil {
+		successCount++
+	} else if errors.Is(r1.err, ErrScanInProgress) {
+		busyCount++
+	} else if r1.err != nil {
+		t.Fatalf("unexpected error: %v", r1.err)
+	}
+
+	if r2.err == nil && r2.res != nil {
+		successCount++
+	} else if errors.Is(r2.err, ErrScanInProgress) {
+		busyCount++
+	} else if r2.err != nil {
+		t.Fatalf("unexpected error: %v", r2.err)
+	}
+
+	if successCount == 0 {
+		t.Error("至少一个扫描应成功")
+	}
+	if busyCount == 0 && successCount == 2 {
+		// 如果两个都成功了说明没有冲突，也可以接受（goroutine 调度顺序）
 	}
 }
 

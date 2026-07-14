@@ -1,6 +1,8 @@
 package api
 
 import (
+	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/ety001/multitune/internal/fsutil"
@@ -18,6 +20,7 @@ const (
 func (h *Handler) ListStorageSources(c *gin.Context) {
 	sources, err := fsutil.ListSources(h.cfg.MediaRoot)
 	if err != nil {
+		slog.Error("查询存储源失败", "error", err)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -52,13 +55,14 @@ func (h *Handler) ListDirectory(c *gin.Context) {
 
 	items, err := fsutil.ListDirectory(path)
 	if err != nil {
-		if err.Error() == "路径不存在" || err.Error() == "路径不是目录" {
+		if errors.Is(err, fsutil.ErrPathNotFound) || errors.Is(err, fsutil.ErrNotADirectory) {
 			c.JSON(http.StatusBadRequest, model.APIResponse{
 				Code:    ErrCodePathNotAccessible,
 				Message: err.Error(),
 			})
 			return
 		}
+		slog.Error("列出目录失败", "error", err, "path", path)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",

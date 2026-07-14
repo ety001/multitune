@@ -70,44 +70,55 @@ type UpsertResult struct {
 	IsNew bool
 }
 
-// Upsert 插入或更新歌曲
+// Upsert 插入或更新歌曲（原子操作，避免 read-modify-write 竞态）
 func (r *SongRepo) Upsert(path, source, title, artist, album string, duration int) (*UpsertResult, error) {
 	now := time.Now().Unix()
-
-	existing, err := r.GetByPath(path)
-	if err != nil {
-		return nil, err
-	}
-
-	if existing != nil {
-		_, err := r.db.Exec(`
-			UPDATE songs
-			SET source = ?, title = ?, artist = ?, album = ?, duration = ?, cover_url = NULL, updated_at = ?
-			WHERE id = ?
-		`, source, title, artist, album, duration, now, existing.ID)
-		if err != nil {
-			return nil, fmt.Errorf("更新歌曲失败: %w", err)
-		}
-		song, err := r.GetByID(existing.ID)
-		if err != nil {
-			return nil, err
-		}
-		return &UpsertResult{Song: song, IsNew: false}, nil
-	}
-
 	id := uuid.NewString()
-	_, err = r.db.Exec(`
-		INSERT INTO songs (id, path, source, title, artist, album, duration, cover_url, created_at, updated_at)
+
+	// 先尝试插入，利用 path UNIQUE 约束
+	result, err := r.db.Exec(`
+		INSERT OR IGNORE INTO songs (id, path, source, title, artist, album, duration, cover_url, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
 	`, id, path, source, title, artist, album, duration, now, now)
 	if err != nil {
-		return nil, fmt.Errorf("插入歌曲失败: %w", err)
+		return nil, fmt.Errorf("保存歌曲失败: %w", err)
 	}
-	song, err := r.GetByID(id)
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("获取影响行数失败: %w", err)
+	}
+
+	if rows > 0 {
+		// 新插入成功
+		song, err := r.GetByID(id)
+		if err != nil {
+			return nil, err
+		}
+		if song == nil {
+			return nil, fmt.Errorf("插入后查询失败: id=%s", id)
+		}
+		return &UpsertResult{Song: song, IsNew: true}, nil
+	}
+
+	// 插入被忽略（path 冲突），执行更新（不碰 cover_url）
+	_, err = r.db.Exec(`
+		UPDATE songs
+		SET source = ?, title = ?, artist = ?, album = ?, duration = ?, updated_at = ?
+		WHERE path = ?
+	`, source, title, artist, album, duration, now, path)
+	if err != nil {
+		return nil, fmt.Errorf("更新歌曲失败: %w", err)
+	}
+
+	song, err := r.GetByPath(path)
 	if err != nil {
 		return nil, err
 	}
-	return &UpsertResult{Song: song, IsNew: true}, nil
+	if song == nil {
+		return nil, fmt.Errorf("更新后查询失败: path=%s", path)
+	}
+	return &UpsertResult{Song: song, IsNew: false}, nil
 }
 
 // List 歌曲列表/搜索
@@ -150,7 +161,7 @@ func (r *SongRepo) List(query, source string, limit, offset int) ([]model.Song, 
 	}
 	defer rows.Close()
 
-	var songs []model.Song
+	songs := make([]model.Song, 0)
 	for rows.Next() {
 		var s model.Song
 		var artist, album, coverURL sql.NullString

@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -51,6 +52,7 @@ func (h *Handler) ScanSongs(c *gin.Context) {
 			})
 			return
 		}
+		slog.Error("扫描失败", "error", err, "path", req.Path)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -84,6 +86,7 @@ func (h *Handler) ListSongs(c *gin.Context) {
 
 	songs, total, err := h.songRepo.List(query, source, limit, offset)
 	if err != nil {
+		slog.Error("查询歌曲列表失败", "error", err)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -106,6 +109,7 @@ func (h *Handler) GetSong(c *gin.Context) {
 	id := c.Param("id")
 	song, err := h.songRepo.GetByID(id)
 	if err != nil {
+		slog.Error("查询歌曲失败", "error", err, "id", id)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",

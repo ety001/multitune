@@ -1,11 +1,18 @@
 package fsutil
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+// ErrPathNotFound 路径不存在
+var ErrPathNotFound = errors.New("路径不存在")
+
+// ErrNotADirectory 路径不是目录
+var ErrNotADirectory = errors.New("路径不是目录")
 
 // audioExtensions 支持的音频格式
 var audioExtensions = map[string]bool{
@@ -23,7 +30,7 @@ func IsAudioFile(path string) bool {
 	return audioExtensions[ext]
 }
 
-// ValidateMediaPath 校验路径在 media root 下且不存在目录遍历
+// ValidateMediaPath 校验路径在 media root 下，防止目录遍历和软链接跳出
 func ValidateMediaPath(mediaRoot, path string) error {
 	if path == "" {
 		return fmt.Errorf("路径不能为空")
@@ -35,49 +42,69 @@ func ValidateMediaPath(mediaRoot, path string) error {
 		return fmt.Errorf("路径包含非法字符: %s", cleanPath)
 	}
 
-	// 解析绝对路径
+	// 解析 mediaRoot 的真实路径（解析软链接）
+	realRoot, err := filepath.EvalSymlinks(mediaRoot)
+	if err != nil {
+		realRoot, err = filepath.Abs(mediaRoot)
+		if err != nil {
+			return fmt.Errorf("解析媒体根目录失败: %w", err)
+		}
+	}
+
 	absPath, err := filepath.Abs(cleanPath)
 	if err != nil {
 		return fmt.Errorf("解析路径失败: %w", err)
 	}
 
-	absMediaRoot, err := filepath.Abs(mediaRoot)
+	// 逐级解析软链接：
+	// 对路径的已存在部分做 EvalSymlinks，剩余部分拼接回去
+	// 这样即使最终文件不存在，也能检测到中间目录的软链接
+	realPath, err := resolveSymlinkPrefix(absPath)
 	if err != nil {
-		return fmt.Errorf("解析媒体根目录失败: %w", err)
+		// 完全不存在时退回到绝对路径前缀检查
+		realPath = absPath
 	}
 
-	// 确保路径在 mediaRoot 下
-	if !strings.HasPrefix(absPath, absMediaRoot) {
+	if !strings.HasPrefix(realPath+string(filepath.Separator), realRoot+string(filepath.Separator)) && realPath != realRoot {
 		return fmt.Errorf("路径不在允许的媒体目录内: %s", absPath)
 	}
 
-	// 检查软链接是否跳出 mediaRoot
-	info, err := os.Lstat(absPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil // 路径不存在时只完成遍历校验，调用方再处理
-		}
-		return fmt.Errorf("获取路径信息失败: %w", err)
-	}
-
-	if info.Mode()&os.ModeSymlink != 0 {
-		target, err := os.Readlink(absPath)
-		if err != nil {
-			return fmt.Errorf("读取软链接失败: %w", err)
-		}
-		if !filepath.IsAbs(target) {
-			target = filepath.Join(filepath.Dir(absPath), target)
-		}
-		absTarget, err := filepath.Abs(target)
-		if err != nil {
-			return fmt.Errorf("解析软链接目标失败: %w", err)
-		}
-		if !strings.HasPrefix(absTarget, absMediaRoot) {
-			return fmt.Errorf("软链接目标不在允许的媒体目录内")
-		}
-	}
-
 	return nil
+}
+
+// resolveSymlinkPrefix 解析路径中已存在部分的软链接
+// 例如 /app/media/home/music/song.mp3 如果 music 是软链接，
+// 解析 music 后再拼接 song.mp3
+func resolveSymlinkPrefix(path string) (string, error) {
+	// 先尝试对整个路径做 EvalSymlinks（路径完全存在的情况）
+	real, err := filepath.EvalSymlinks(path)
+	if err == nil {
+		return real, nil
+	}
+
+	// 逐级回退，找到最长已存在前缀并解析
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+
+	for {
+		realDir, err := filepath.EvalSymlinks(dir)
+		if err == nil {
+			// 找到已存在的父目录，解析软链接后拼接剩余部分
+			return filepath.Join(realDir, base), nil
+		}
+		if !os.IsNotExist(err) {
+			// 其他错误（权限等），无法判断
+			return path, err
+		}
+		// 父目录也不存在，继续回退
+		parentDir := filepath.Dir(dir)
+		base = filepath.Join(filepath.Base(dir), base)
+		if parentDir == dir {
+			// 已到根目录
+			return path, nil
+		}
+		dir = parentDir
+	}
 }
 
 // ListSources 列出媒体根目录下的存储源
@@ -109,17 +136,26 @@ func ListSources(mediaRoot string) ([]map[string]interface{}, error) {
 	return sources, nil
 }
 
+// DirEntry 目录条项
+type DirEntry struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Type    string `json:"type"`
+	IsAudio bool   `json:"is_audio,omitempty"`
+	Size    int64  `json:"size,omitempty"`
+}
+
 // ListDirectory 列出目录内容
-func ListDirectory(path string) ([]map[string]interface{}, error) {
+func ListDirectory(path string) ([]DirEntry, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("路径不存在")
+			return nil, ErrPathNotFound
 		}
 		return nil, fmt.Errorf("获取目录信息失败: %w", err)
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("路径不是目录")
+		return nil, ErrNotADirectory
 	}
 
 	entries, err := os.ReadDir(path)
@@ -127,19 +163,19 @@ func ListDirectory(path string) ([]map[string]interface{}, error) {
 		return nil, fmt.Errorf("读取目录失败: %w", err)
 	}
 
-	items := []map[string]interface{}{}
+	items := []DirEntry{}
 	for _, entry := range entries {
-		item := map[string]interface{}{
-			"name": entry.Name(),
-			"path": filepath.Join(path, entry.Name()),
+		item := DirEntry{
+			Name: entry.Name(),
+			Path: filepath.Join(path, entry.Name()),
 		}
 		if entry.IsDir() {
-			item["type"] = "dir"
+			item.Type = "dir"
 		} else {
-			item["type"] = "file"
-			item["is_audio"] = IsAudioFile(entry.Name())
+			item.Type = "file"
+			item.IsAudio = IsAudioFile(entry.Name())
 			if info, err := entry.Info(); err == nil {
-				item["size"] = info.Size()
+				item.Size = info.Size()
 			}
 		}
 		items = append(items, item)
