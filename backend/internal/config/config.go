@@ -22,7 +22,7 @@ type Config struct {
 
 // Load 从环境变量加载配置
 func Load() *Config {
-	return &Config{
+	cfg := &Config{
 		Port:                    getEnv("PORT", "8080"),
 		DataPath:                getEnv("DATA_PATH", "/app/data"),
 		MediaRoot:               getEnv("MEDIA_ROOT", "/app/media"),
@@ -34,6 +34,24 @@ func Load() *Config {
 		PlaybackSaveInterval:    getEnvInt("PLAYBACK_SAVE_INTERVAL", 5),
 		LogLevel:                getEnv("LOG_LEVEL", "info"),
 	}
+
+	if _, err := strconv.Atoi(cfg.Port); err != nil {
+		cfg.Port = "8080"
+	}
+	if cfg.MaxIdentities <= 0 {
+		cfg.MaxIdentities = 20
+	}
+	if cfg.MaxPlaylistsPerIdentity <= 0 {
+		cfg.MaxPlaylistsPerIdentity = 50
+	}
+	if cfg.MaxSongsPerPlaylist <= 0 {
+		cfg.MaxSongsPerPlaylist = 1000
+	}
+	if cfg.PlaybackSaveInterval <= 0 {
+		cfg.PlaybackSaveInterval = 5
+	}
+
+	return cfg
 }
 
 func getEnv(key, defaultValue string) string {

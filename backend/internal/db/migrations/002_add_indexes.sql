@@ -14,5 +14,9 @@ CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs(artist);
 -- 单曲进度记忆索引
 CREATE INDEX IF NOT EXISTS idx_song_progress_identity_id ON song_progress(identity_id);
 
+-- 播放状态索引
+CREATE INDEX IF NOT EXISTS idx_playback_states_playlist_id ON playback_states(playlist_id);
+CREATE INDEX IF NOT EXISTS idx_playback_states_song_id ON playback_states(song_id);
+
 -- 全局唯一默认身份约束
 CREATE UNIQUE INDEX IF NOT EXISTS idx_one_default_identity ON identities(is_default) WHERE is_default = 1;

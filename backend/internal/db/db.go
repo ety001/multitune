@@ -31,8 +31,8 @@ func New(cfg *config.Config) (*DB, error) {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
 	}
 
-	sqlDB.SetMaxOpenConns(1)
-	sqlDB.SetMaxIdleConns(1)
+	sqlDB.SetMaxOpenConns(10)
+	sqlDB.SetMaxIdleConns(5)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	if err := sqlDB.Ping(); err != nil {

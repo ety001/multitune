@@ -3,6 +3,7 @@ package db
 import (
 	"embed"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -67,7 +68,7 @@ func (db *DB) Migrate() error {
 		}
 
 		if _, err := tx.Exec(string(sql)); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("执行迁移 %s 失败: %w", m.name, err)
 		}
 
@@ -75,13 +76,15 @@ func (db *DB) Migrate() error {
 			"INSERT INTO _migrations (version, applied_at) VALUES (?, ?)",
 			m.version, time.Now().Unix(),
 		); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("记录迁移版本失败: %w", err)
 		}
 
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("提交迁移事务失败: %w", err)
 		}
+
+		slog.Info("数据库迁移执行成功", "version", m.version, "file", m.name)
 	}
 
 	return nil

@@ -18,7 +18,7 @@ type Playlist struct {
 	Name       string `json:"name"`
 	CoverURL   string `json:"cover_url,omitempty"`
 	SortOrder  int    `json:"sort_order"`
-	SongCount  int    `json:"song_count,omitempty"`
+	SongCount  int    `json:"song_count"`
 	CreatedAt  int64  `json:"created_at"`
 	UpdatedAt  int64  `json:"updated_at"`
 }

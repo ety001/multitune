@@ -1,10 +1,12 @@
 package api
 
 import (
-	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 
+	"github.com/ety001/multitune/internal/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,7 +36,23 @@ func (h *Handler) SetupRouter() *gin.Engine {
 	}
 	if _, err := os.Stat(staticPath); err == nil {
 		r.Static("/", staticPath)
+	} else {
+		slog.Warn("静态文件目录不存在，仅提供 API 服务", "path", staticPath)
 	}
+
+	// 404/405 统一响应
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, model.APIResponse{
+			Code:    404,
+			Message: "接口不存在",
+		})
+	})
+	r.NoMethod(func(c *gin.Context) {
+		c.JSON(http.StatusMethodNotAllowed, model.APIResponse{
+			Code:    405,
+			Message: "请求方法不允许",
+		})
+	})
 
 	return r
 }
@@ -59,7 +77,7 @@ func corsMiddleware() gin.HandlerFunc {
 func requestLogger() gin.HandlerFunc {
 	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
 		return param.TimeStamp.Format("2006-01-02 15:04:05") +
-			" | " + fmt.Sprintf("%d", param.StatusCode) +
+			" | " + strconv.Itoa(param.StatusCode) +
 			" | " + param.Latency.String() +
 			" | " + param.Method +
 			" | " + param.Path +

@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/ety001/multitune/internal/api"
 	"github.com/ety001/multitune/internal/config"
@@ -25,17 +30,43 @@ func main() {
 		slog.Error("数据库初始化失败", "error", err)
 		os.Exit(1)
 	}
-	defer database.Close()
 
 	handler := api.NewHandler(cfg, database)
 	r := handler.SetupRouter()
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
-	slog.Info("HTTP 服务启动", "addr", addr)
-	if err := r.Run(addr); err != nil {
-		slog.Error("HTTP 服务启动失败", "error", err)
-		os.Exit(1)
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: r,
 	}
+
+	// 启动 HTTP 服务
+	go func() {
+		slog.Info("HTTP 服务启动", "addr", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("HTTP 服务启动失败", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// 等待退出信号
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	slog.Info("正在关闭服务...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		slog.Error("服务关闭失败", "error", err)
+	}
+
+	if err := database.Close(); err != nil {
+		slog.Error("数据库关闭失败", "error", err)
+	}
+
+	slog.Info("服务已关闭")
 }
 
 func setupLogger(level string) {
