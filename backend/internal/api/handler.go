@@ -14,6 +14,7 @@ type Handler struct {
 	identityRepo *repository.IdentityRepo
 	playlistRepo *repository.PlaylistRepo
 	songRepo     *repository.SongRepo
+	playbackRepo *repository.PlaybackRepo
 	scanner      *scanner.Scanner
 }
 
@@ -26,6 +27,7 @@ func NewHandler(cfg *config.Config, db *db.DB) *Handler {
 		identityRepo: repository.NewIdentityRepo(db),
 		playlistRepo: repository.NewPlaylistRepo(db),
 		songRepo:     songRepo,
+		playbackRepo: repository.NewPlaybackRepo(db),
 		scanner:      scanner.New(cfg.MediaRoot, songRepo, cfg.ScanFormats),
 	}
 }
