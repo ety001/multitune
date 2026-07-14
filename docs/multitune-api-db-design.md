@@ -321,6 +321,11 @@ CREATE INDEX idx_songs_source ON songs(source);
 #### POST /api/identities/:id/default
 设为默认身份。
 
+**说明**：
+- 一个应用内只能有一个默认身份。
+- 设置某身份为默认时，自动将其他身份的 `is_default` 置为 0。
+- 创建第一个身份时后端自动将其设为默认。
+
 **响应**：
 ```json
 {
@@ -332,6 +337,10 @@ CREATE INDEX idx_songs_source ON songs(source);
   }
 }
 ```
+
+#### DELETE /api/identities/:id 的默认身份处理
+- 如果删除的是默认身份，且还有其他身份，自动将 `sort_order` 最小的身份设为默认。
+- 如果删除后没有身份，应用进入首次使用引导状态。
 
 ---
 
@@ -450,7 +459,8 @@ CREATE INDEX idx_songs_source ON songs(source);
 ```
 
 **说明**：
-- 如果歌曲不在 `songs` 表中，后端自动扫描元数据并入库。
+- `song_ids` 必须已存在于 `songs` 表中。
+- 如需将未扫描的文件加入歌单，先调用 `POST /api/scan` 扫描目录或文件，再使用返回的 `song_id` 调用本接口。
 - 已存在的歌曲不重复添加。
 - 追加到歌单末尾。
 
@@ -472,12 +482,19 @@ CREATE INDEX idx_songs_source ON songs(source);
 ### 3.3 歌曲与扫描 API
 
 #### POST /api/scan
-扫描指定目录，返回发现的歌曲。
+扫描指定目录或文件，返回发现的歌曲。
 
 **请求体**：
 ```json
 {
   "path": "/app/media/home/music"
+}
+```
+
+或扫描单个文件：
+```json
+{
+  "path": "/app/media/home/music/xxx.mp3"
 }
 ```
 
@@ -704,7 +721,67 @@ CREATE INDEX idx_songs_source ON songs(source);
 
 ---
 
-## 四、文件扫描与索引流程
+## 四、配置与环境变量
+
+| 变量名 | 默认值 | 说明 |
+|---|---|---|
+| `PORT` | `8080` | HTTP 服务端口 |
+| `DATA_PATH` | `/app/data` | SQLite 数据库与封面缓存目录 |
+| `MEDIA_ROOT` | `/app/media` | 音乐文件挂载根目录 |
+| `DATABASE_NAME` | `multitune.db` | SQLite 数据库文件名 |
+| `MAX_IDENTITIES` | `20` | 最大身份数量 |
+| `MAX_PLAYLISTS_PER_IDENTITY` | `50` | 每个身份最大歌单数 |
+| `MAX_SONGS_PER_PLAYLIST` | `1000` | 每个歌单最大歌曲数 |
+| `SCAN_FORMATS` | `mp3,flac,m4a,aac,ogg,wav` | 扫描支持的音频格式 |
+| `PLAYBACK_SAVE_INTERVAL` | `5` | 播放进度自动保存间隔（秒） |
+| `LOG_LEVEL` | `info` | 日志级别：debug/info/warn/error |
+
+## 五、数据库迁移
+
+采用手写迁移脚本管理表结构：
+
+```
+backend/migrations/
+  ├── 001_init_schema.sql
+  ├── 002_add_indexes.sql
+  └── ...
+```
+
+迁移记录表：
+```sql
+CREATE TABLE IF NOT EXISTS _migrations (
+    version INTEGER PRIMARY KEY,
+    applied_at INTEGER NOT NULL
+);
+```
+
+启动时按版本号顺序执行：
+1. 读取 `_migrations` 表记录当前版本。
+2. 对比 migrations 目录中的脚本，执行未执行的脚本。
+3. 每执行一条，写入 `_migrations` 表。
+
+要求：
+- 新增字段必须加默认值，保证旧数据兼容。
+- 删除字段/表先标记废弃，至少保留一个版本后再删除。
+
+## 六、安全设计
+
+### 6.1 路径校验
+- `/api/fs/list`、`/api/scan`、`/api/stream` 必须校验路径在 `MEDIA_ROOT` 下，禁止访问容器其他目录。
+- 拒绝包含 `..`、软链接跳出 `MEDIA_ROOT` 的路径。
+
+### 6.2 音频流安全
+- `/api/stream` 通过 `song_id` 查询 `songs.path`，不直接接受客户端路径。
+- 返回前再次校验文件在 `MEDIA_ROOT` 下且可读。
+
+### 6.3 身份隔离
+- 所有按身份查询的接口必须校验 `identity_id` 存在。
+- 播放状态按身份隔离，不允许跨身份读取。
+
+### 6.4 无用户系统声明
+多音盒不内置认证，部署在公网或共享环境时，需由搭建者自行配置外部访问控制（见 README.md）。
+
+## 七、文件扫描与索引流程
 
 ### 4.1 扫描触发时机
 1. 用户在文件浏览器中选择文件夹并点击"扫描"。
@@ -740,27 +817,32 @@ CREATE INDEX idx_songs_source ON songs(source);
 
 ---
 
-## 五、播放状态保存策略
+## 八、播放状态保存策略
 
-### 5.1 保存时机
+### 8.1 保存时机
 - 播放过程中每 5 秒保存一次 position。
 - 切换歌曲时保存上一首的 position。
 - 用户暂停时保存 position。
 - 用户切换身份时保存当前身份的 position。
 - 页面可见性变化（visibilitychange）时保存。
 
-### 5.2 恢复逻辑
+### 8.2 恢复逻辑
 - 进入身份时，查询该身份的 playback_state。
 - 如果存在且歌曲文件可访问，从 position 位置开始播放。
 - 如果歌曲文件已不可用（如 USB 拔出），从该歌单第一首开始播放。
 
-### 5.3 数据库写入优化
+### 8.2.1 最近播放记录（P2）
+- 每次播放歌曲时，将 `song_id` 和 `played_at` 写入 `recent_plays` 表（V1.1 实现）。
+- 表结构：`(song_id TEXT, identity_id TEXT, played_at INTEGER)`。
+- 首页可按身份展示最近播放的歌曲列表。
+
+### 8.3 数据库写入优化
 - 播放进度保存可使用内存缓存 + 定期刷盘，避免频繁写 SQLite。
 - 简单实现：每次保存直接 UPDATE，SQLite WAL 模式下性能足够（1000 次/秒以上）。
 
 ---
 
-## 六、简化版前端 API 调用说明
+## 九、简化版前端 API 调用说明
 
 简化版前端使用原生 `XMLHttpRequest` 调用上述 API：
 
@@ -779,11 +861,21 @@ xhr.onreadystatechange = function() {
 xhr.send();
 ```
 
-所有 API 对现代版和简化版保持一致，简化版只使用 GET/POST，避免复杂请求。
+简化版前端主要调用以下接口：
+- `GET /api/identities`
+- `GET /api/identities/:id/playlists`
+- `GET /api/playlists/:id`
+- `GET /api/playback/:identityId`
+- `POST /api/playback/:identityId`
+- `GET /api/stream?songId=xxx`
+- `GET /api/fs/sources`
+- `GET /api/fs/list?path=xxx`
+
+简化版不调用 PUT/DELETE，相关管理操作（编辑、删除）在车机场景下引导至 PC 完整版完成。
 
 ---
 
-## 七、下一步
+## 十、下一步
 
 1. 确认 API 定义是否有遗漏或调整。
 2. 确认数据库字段是否满足需求。
