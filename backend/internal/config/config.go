@@ -4,20 +4,24 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 // Config 应用配置
 type Config struct {
-	Port                   string
-	DataPath               string
-	MediaRoot              string
-	DatabaseName           string
-	MaxIdentities          int
+	Port                    string
+	DataPath                string
+	MediaRoot               string
+	DatabaseName            string
+	MaxIdentities           int
 	MaxPlaylistsPerIdentity int
-	MaxSongsPerPlaylist    int
-	ScanFormats            []string
-	PlaybackSaveInterval   int
-	LogLevel               string
+	MaxSongsPerPlaylist     int
+	ScanFormats             []string
+	PlaybackSaveInterval    int
+	LogLevel                string
+	GINMode                 string
+	StaticPath              string
 }
 
 // Load 从环境变量加载配置
@@ -33,6 +37,8 @@ func Load() *Config {
 		ScanFormats:             getEnvSlice("SCAN_FORMATS", []string{"mp3", "flac", "m4a", "aac", "ogg", "wav"}),
 		PlaybackSaveInterval:    getEnvInt("PLAYBACK_SAVE_INTERVAL", 5),
 		LogLevel:                getEnv("LOG_LEVEL", "info"),
+		GINMode:                 getEnv("GIN_MODE", gin.ReleaseMode),
+		StaticPath:              getEnv("STATIC_PATH", "/app/static"),
 	}
 
 	if _, err := strconv.Atoi(cfg.Port); err != nil {

@@ -36,8 +36,11 @@ func main() {
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: r,
+		Addr:         addr,
+		Handler:      r,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	// 启动 HTTP 服务

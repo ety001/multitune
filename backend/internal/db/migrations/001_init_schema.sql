@@ -69,9 +69,3 @@ CREATE TABLE IF NOT EXISTS song_progress (
     FOREIGN KEY (identity_id) REFERENCES identities(id) ON DELETE CASCADE,
     FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
 );
-
--- 迁移记录表
-CREATE TABLE IF NOT EXISTS _migrations (
-    version INTEGER PRIMARY KEY,
-    applied_at INTEGER NOT NULL
-);

@@ -106,7 +106,7 @@ type migrationFile struct {
 
 func parseVersion(name string) (int, error) {
 	parts := strings.Split(name, "_")
-	if len(parts) < 1 {
+	if len(parts) < 2 {
 		return 0, fmt.Errorf("非法的迁移文件名: %s", name)
 	}
 	version, err := strconv.Atoi(parts[0])

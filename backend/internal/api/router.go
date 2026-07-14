@@ -12,11 +12,7 @@ import (
 
 // SetupRouter 配置路由
 func (h *Handler) SetupRouter() *gin.Engine {
-	mode := os.Getenv("GIN_MODE")
-	if mode == "" {
-		mode = gin.ReleaseMode
-	}
-	gin.SetMode(mode)
+	gin.SetMode(h.cfg.GINMode)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -30,10 +26,7 @@ func (h *Handler) SetupRouter() *gin.Engine {
 	}
 
 	// 静态文件服务
-	staticPath := os.Getenv("STATIC_PATH")
-	if staticPath == "" {
-		staticPath = "/app/static"
-	}
+	staticPath := h.cfg.StaticPath
 	if _, err := os.Stat(staticPath); err == nil {
 		r.Static("/", staticPath)
 	} else {
