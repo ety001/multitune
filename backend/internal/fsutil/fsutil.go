@@ -24,10 +24,29 @@ var audioExtensions = map[string]bool{
 	".wav":  true,
 }
 
+// contentTypes 音频文件扩展名到 MIME 类型映射
+var contentTypes = map[string]string{
+	".mp3":  "audio/mpeg",
+	".flac": "audio/flac",
+	".m4a":  "audio/mp4",
+	".aac":  "audio/aac",
+	".ogg":  "audio/ogg",
+	".wav":  "audio/wav",
+}
+
 // IsAudioFile 判断文件是否为支持的音频文件
 func IsAudioFile(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	return audioExtensions[ext]
+}
+
+// ContentTypeByExt 根据扩展名返回音频 MIME 类型
+func ContentTypeByExt(ext string) string {
+	ct := contentTypes[strings.ToLower(ext)]
+	if ct == "" {
+		return "application/octet-stream"
+	}
+	return ct
 }
 
 // ValidateMediaPath 校验路径在 media root 下，防止目录遍历和软链接跳出
