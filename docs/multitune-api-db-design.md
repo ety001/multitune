@@ -271,6 +271,10 @@ CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_
 #### POST /api/identities
 创建身份。
 
+**说明**：
+- 创建第一个身份时，后端自动将其设为默认身份。
+- 当身份数量达到 `MAX_IDENTITIES` 时返回错误码 `1003`。
+
 **请求体**：
 ```json
 {
@@ -355,7 +359,6 @@ CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_
 **说明**：
 - 一个应用内只能有一个默认身份。
 - 设置某身份为默认时，自动将其他身份的 `is_default` 置为 0。
-- 创建第一个身份时后端自动将其设为默认。
 
 **响应**：
 ```json
@@ -569,7 +572,7 @@ CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_
 - **re-scan 更新策略**：如果文件已存在（按 `path` 匹配），使用 `INSERT OR REPLACE` 语义更新元数据（title/artist/album/duration/cover_url），这样用户修改 ID3 标签后重新扫描可生效。
 - 扫描只发现支持的音频格式：mp3, flac, m4a, aac, ogg, wav。
 - 扫描过程异步或同步均可，目录大时建议返回任务 ID（V1 可简化为同步）。
-- **并发限流**：同一时间只允许一个扫描任务运行，新请求返回 1003-like 错误码（或 HTTP 409）。
+- **并发限流**：同一时间只允许一个扫描任务运行，新请求返回错误码 `4003`（或 HTTP 409）。
 
 #### GET /api/songs
 歌曲列表/搜索。

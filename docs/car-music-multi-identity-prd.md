@@ -294,7 +294,7 @@ Song（歌曲，引用）:
   - artist: string
   - album: string
   - duration: int         # 秒
-  - cover?: string        # 封面 URL
+  - cover_url?: string    # 封面 URL
 
 PlaylistSong（歌单-歌曲关联）:
   - playlist_id: string
