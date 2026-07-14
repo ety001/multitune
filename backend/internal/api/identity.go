@@ -132,10 +132,28 @@ func (h *Handler) GetIdentity(c *gin.Context) {
 		return
 	}
 
-	// TODO: 实现歌单列表查询后填充 playlists
+	playlists, err := h.playlistRepo.ListByIdentity(id)
+	if err != nil {
+		slog.Error("查询身份歌单列表失败", "error", err, "identity_id", id)
+		c.JSON(http.StatusInternalServerError, model.APIResponse{
+			Code:    9001,
+			Message: "内部错误",
+		})
+		return
+	}
+
+	playlistItems := make([]identityPlaylist, 0, len(playlists))
+	for _, p := range playlists {
+		playlistItems = append(playlistItems, identityPlaylist{
+			ID:        p.ID,
+			Name:      p.Name,
+			SongCount: p.SongCount,
+		})
+	}
+
 	resp := identityDetailResponse{
 		Identity:  *identity,
-		Playlists: []identityPlaylist{},
+		Playlists: playlistItems,
 	}
 
 	c.JSON(http.StatusOK, model.APIResponse{

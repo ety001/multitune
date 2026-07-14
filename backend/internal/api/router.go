@@ -31,6 +31,13 @@ func (h *Handler) SetupRouter() *gin.Engine {
 		api.PUT("/identities/:id", h.UpdateIdentity)
 		api.DELETE("/identities/:id", h.DeleteIdentity)
 		api.POST("/identities/:id/default", h.SetDefaultIdentity)
+
+		// 歌单 API
+		api.GET("/identities/:id/playlists", h.ListPlaylists)
+		api.POST("/identities/:id/playlists", h.CreatePlaylist)
+		api.GET("/playlists/:id", h.GetPlaylist)
+		api.PUT("/playlists/:id", h.UpdatePlaylist)
+		api.DELETE("/playlists/:id", h.DeletePlaylist)
 	}
 
 	// 静态文件服务
