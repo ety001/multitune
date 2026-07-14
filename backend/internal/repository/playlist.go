@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ety001/multitune/internal/db"
@@ -37,7 +38,7 @@ func (r *PlaylistRepo) ListByIdentity(identityID string) ([]model.Playlist, erro
 	}
 	defer rows.Close()
 
-	var playlists []model.Playlist
+	playlists := make([]model.Playlist, 0)
 	for rows.Next() {
 		var p model.Playlist
 		var coverURL sql.NullString
@@ -105,51 +106,53 @@ func (r *PlaylistRepo) Create(identityID, name string, sortOrder int) (*model.Pl
 	return r.GetByID(id)
 }
 
-// Update 更新歌单
+// Update 更新歌单（单条 SQL，避免 read-modify-write 竞态）
 func (r *PlaylistRepo) Update(id string, name, coverURL *string, sortOrder *int) (*model.Playlist, error) {
-	playlist, err := r.GetByID(id)
+	// 先检查是否存在
+	existing, err := r.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
-	if playlist == nil {
+	if existing == nil {
 		return nil, nil
 	}
 
+	now := time.Now().Unix()
+
+	// 动态拼接 SET 子句，只更新传入的字段
+	setParts := []string{"updated_at = ?"}
+	args := []interface{}{now}
 	if name != nil {
-		playlist.Name = *name
+		setParts = append(setParts, "name = ?")
+		args = append(args, *name)
 	}
 	if coverURL != nil {
-		playlist.CoverURL = *coverURL
+		setParts = append(setParts, "cover_url = ?")
+		args = append(args, *coverURL)
 	}
 	if sortOrder != nil {
-		playlist.SortOrder = *sortOrder
+		setParts = append(setParts, "sort_order = ?")
+		args = append(args, *sortOrder)
 	}
-	playlist.UpdatedAt = time.Now().Unix()
+	args = append(args, id)
 
-	_, err = r.db.Exec(`
-		UPDATE playlists
-		SET name = ?, cover_url = ?, sort_order = ?, updated_at = ?
-		WHERE id = ?
-	`, playlist.Name, playlist.CoverURL, playlist.SortOrder, playlist.UpdatedAt, id)
-	if err != nil {
+	query := "UPDATE playlists SET " + strings.Join(setParts, ", ") + " WHERE id = ?"
+	if _, err := r.db.Exec(query, args...); err != nil {
 		return nil, fmt.Errorf("更新歌单失败: %w", err)
 	}
 
-	return playlist, nil
+	return r.GetByID(id)
 }
 
-// Delete 删除歌单
-func (r *PlaylistRepo) Delete(id string) error {
+// Delete 删除歌单，返回是否实际删除了记录
+func (r *PlaylistRepo) Delete(id string) (bool, error) {
 	result, err := r.db.Exec(`DELETE FROM playlists WHERE id = ?`, id)
 	if err != nil {
-		return fmt.Errorf("删除歌单失败: %w", err)
+		return false, fmt.Errorf("删除歌单失败: %w", err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("获取删除影响行数失败: %w", err)
+		return false, fmt.Errorf("获取删除影响行数失败: %w", err)
 	}
-	if rows == 0 {
-		return nil // 歌单不存在也视为成功删除
-	}
-	return nil
+	return rows > 0, nil
 }

@@ -134,6 +134,7 @@ func (h *Handler) GetIdentity(c *gin.Context) {
 
 	playlists, err := h.playlistRepo.ListByIdentity(id)
 	if err != nil {
+		slog.Error("查询身份歌单列表失败", "error", err, "identity_id", id)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",

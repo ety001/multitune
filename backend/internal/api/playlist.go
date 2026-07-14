@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/ety001/multitune/internal/model"
@@ -20,6 +21,12 @@ type updatePlaylistRequest struct {
 	SortOrder *int    `json:"sort_order,omitempty"`
 }
 
+// playlistDetailResponse 歌单详情响应
+type playlistDetailResponse struct {
+	model.Playlist
+	Songs []model.Song `json:"songs"`
+}
+
 // error codes for playlist API
 const (
 	ErrCodePlaylistNotFound            = 2001
@@ -35,6 +42,7 @@ func (h *Handler) ListPlaylists(c *gin.Context) {
 	// 校验身份存在
 	identity, err := h.identityRepo.GetByID(identityID)
 	if err != nil {
+		slog.Error("查询身份失败", "error", err, "id", identityID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -51,6 +59,7 @@ func (h *Handler) ListPlaylists(c *gin.Context) {
 
 	playlists, err := h.playlistRepo.ListByIdentity(identityID)
 	if err != nil {
+		slog.Error("查询歌单列表失败", "error", err, "identity_id", identityID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -75,6 +84,7 @@ func (h *Handler) CreatePlaylist(c *gin.Context) {
 	// 校验身份存在
 	identity, err := h.identityRepo.GetByID(identityID)
 	if err != nil {
+		slog.Error("查询身份失败", "error", err, "id", identityID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -100,6 +110,7 @@ func (h *Handler) CreatePlaylist(c *gin.Context) {
 
 	count, err := h.playlistRepo.CountByIdentity(identityID)
 	if err != nil {
+		slog.Error("统计歌单数量失败", "error", err, "identity_id", identityID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -116,6 +127,7 @@ func (h *Handler) CreatePlaylist(c *gin.Context) {
 
 	playlist, err := h.playlistRepo.Create(identityID, req.Name, req.SortOrder)
 	if err != nil {
+		slog.Error("创建歌单失败", "error", err, "identity_id", identityID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -135,6 +147,7 @@ func (h *Handler) GetPlaylist(c *gin.Context) {
 	id := c.Param("id")
 	playlist, err := h.playlistRepo.GetByID(id)
 	if err != nil {
+		slog.Error("查询歌单失败", "error", err, "id", id)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -150,10 +163,7 @@ func (h *Handler) GetPlaylist(c *gin.Context) {
 	}
 
 	// TODO: 实现歌曲列表查询后填充 songs
-	resp := struct {
-		model.Playlist
-		Songs []model.Song `json:"songs"`
-	}{
+	resp := playlistDetailResponse{
 		Playlist: *playlist,
 		Songs:    []model.Song{},
 	}
@@ -171,7 +181,7 @@ func (h *Handler) UpdatePlaylist(c *gin.Context) {
 	var req updatePlaylistRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, model.APIResponse{
-			Code:    9001,
+			Code:    ErrCodePlaylistNameEmpty,
 			Message: "请求参数错误",
 		})
 		return
@@ -187,6 +197,7 @@ func (h *Handler) UpdatePlaylist(c *gin.Context) {
 
 	playlist, err := h.playlistRepo.Update(id, req.Name, req.CoverURL, req.SortOrder)
 	if err != nil {
+		slog.Error("更新歌单失败", "error", err, "id", id)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -211,10 +222,19 @@ func (h *Handler) UpdatePlaylist(c *gin.Context) {
 // DeletePlaylist DELETE /api/playlists/:id
 func (h *Handler) DeletePlaylist(c *gin.Context) {
 	id := c.Param("id")
-	if err := h.playlistRepo.Delete(id); err != nil {
+	deleted, err := h.playlistRepo.Delete(id)
+	if err != nil {
+		slog.Error("删除歌单失败", "error", err, "id", id)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
+		})
+		return
+	}
+	if !deleted {
+		c.JSON(http.StatusNotFound, model.APIResponse{
+			Code:    ErrCodePlaylistNotFound,
+			Message: "歌单不存在",
 		})
 		return
 	}

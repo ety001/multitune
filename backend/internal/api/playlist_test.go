@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
+	"github.com/ety001/multitune/internal/config"
+	"github.com/ety001/multitune/internal/db"
 	"github.com/ety001/multitune/internal/model"
+	"github.com/gin-gonic/gin"
 )
 
 func TestHandler_ListPlaylists(t *testing.T) {
@@ -138,6 +142,130 @@ func TestHandler_DeletePlaylist(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("状态码错误: got %d, want %d, body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+}
+
+func TestHandler_DeletePlaylist_NotFound(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", "/api/playlists/nonexistent", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("状态码错误: got %d, want %d", w.Code, http.StatusNotFound)
+	}
+
+	var resp model.APIResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Code != ErrCodePlaylistNotFound {
+		t.Errorf("错误码错误: got %d, want %d", resp.Code, ErrCodePlaylistNotFound)
+	}
+}
+
+func TestHandler_UpdatePlaylist(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	identity := createIdentityForTest(t, r, "爸爸")
+	playlist := createPlaylistForTest(t, r, identity.ID, "通勤")
+
+	updateBody := map[string]interface{}{
+		"name":       "通勤-改",
+		"sort_order": 5,
+	}
+	jsonBody, _ := json.Marshal(updateBody)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/playlists/"+playlist.ID, bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("状态码错误: got %d, want %d, body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp model.APIResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	data, _ := json.Marshal(resp.Data)
+	var updated model.Playlist
+	_ = json.Unmarshal(data, &updated)
+
+	if updated.Name != "通勤-改" {
+		t.Errorf("名称未更新: got %s, want 通勤-改", updated.Name)
+	}
+	if updated.SortOrder != 5 {
+		t.Errorf("排序未更新: got %d, want 5", updated.SortOrder)
+	}
+}
+
+func TestHandler_GetPlaylist(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	identity := createIdentityForTest(t, r, "爸爸")
+	playlist := createPlaylistForTest(t, r, identity.ID, "通勤")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/playlists/"+playlist.ID, nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("状态码错误: got %d, want %d, body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp model.APIResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Code != 0 {
+		t.Errorf("响应码错误: got %d, want 0", resp.Code)
+	}
+}
+
+func TestHandler_CreatePlaylist_MaxLimit(t *testing.T) {
+	cfg := &config.Config{
+		DataPath:                t.TempDir(),
+		DatabaseName:            "test.db",
+		MaxIdentities:           20,
+		MaxPlaylistsPerIdentity: 2,
+		MaxSongsPerPlaylist:     1000,
+		GINMode:                 gin.TestMode,
+		StaticPath:              "/nonexistent",
+	}
+	database, err := db.New(cfg)
+	if err != nil {
+		t.Fatalf("创建测试数据库失败: %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+
+	gin.DefaultWriter = os.NewFile(0, os.DevNull)
+	h := NewHandler(cfg, database)
+	r := h.SetupRouter()
+
+	identity := createIdentityForTest(t, r, "爸爸")
+
+	create := func(name string) int {
+		body := map[string]interface{}{
+			"name": name,
+		}
+		jsonBody, _ := json.Marshal(body)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/identities/"+identity.ID+"/playlists", bytes.NewBuffer(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	// 前 2 个成功
+	if code := create("A"); code != http.StatusOK {
+		t.Errorf("第1个应成功: got %d", code)
+	}
+	if code := create("B"); code != http.StatusOK {
+		t.Errorf("第2个应成功: got %d", code)
+	}
+	// 第 3 个被拒绝
+	if code := create("C"); code != http.StatusBadRequest {
+		t.Errorf("第3个应被拒绝: got %d, want %d", code, http.StatusBadRequest)
 	}
 }
 

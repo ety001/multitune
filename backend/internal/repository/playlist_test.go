@@ -63,13 +63,26 @@ func TestPlaylistRepo_Delete(t *testing.T) {
 	identity, _ := identityRepo.Create("爸爸", "#6366f1", 0)
 	playlist, _ := playlistRepo.Create(identity.ID, "通勤", 0)
 
-	if err := playlistRepo.Delete(playlist.ID); err != nil {
+	deleted, err := playlistRepo.Delete(playlist.ID)
+	if err != nil {
 		t.Fatalf("删除歌单失败: %v", err)
+	}
+	if !deleted {
+		t.Error("应返回 deleted=true")
 	}
 
 	remaining, _ := playlistRepo.ListByIdentity(identity.ID)
 	if len(remaining) != 0 {
 		t.Errorf("剩余歌单数量错误: got %d, want 0", len(remaining))
+	}
+
+	// 删除不存在的歌单
+	deleted2, err := playlistRepo.Delete(playlist.ID)
+	if err != nil {
+		t.Fatalf("删除不存在歌单应无错误: %v", err)
+	}
+	if deleted2 {
+		t.Error("不存在的歌单应返回 deleted=false")
 	}
 }
 
