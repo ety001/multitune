@@ -23,6 +23,14 @@ func (h *Handler) SetupRouter() *gin.Engine {
 	api := r.Group("/api")
 	{
 		api.GET("/healthz", h.HealthCheck)
+
+		// 身份 API
+		api.GET("/identities", h.ListIdentities)
+		api.POST("/identities", h.CreateIdentity)
+		api.GET("/identities/:id", h.GetIdentity)
+		api.PUT("/identities/:id", h.UpdateIdentity)
+		api.DELETE("/identities/:id", h.DeleteIdentity)
+		api.POST("/identities/:id/default", h.SetDefaultIdentity)
 	}
 
 	// 静态文件服务
