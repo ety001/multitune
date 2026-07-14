@@ -4,8 +4,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/gin-gonic/gin"
 )
 
 // Config 应用配置
@@ -37,7 +35,7 @@ func Load() *Config {
 		ScanFormats:             getEnvSlice("SCAN_FORMATS", []string{"mp3", "flac", "m4a", "aac", "ogg", "wav"}),
 		PlaybackSaveInterval:    getEnvInt("PLAYBACK_SAVE_INTERVAL", 5),
 		LogLevel:                getEnv("LOG_LEVEL", "info"),
-		GINMode:                 getEnv("GIN_MODE", gin.ReleaseMode),
+		GINMode:                 getEnv("GIN_MODE", "release"),
 		StaticPath:              getEnv("STATIC_PATH", "/app/static"),
 	}
 

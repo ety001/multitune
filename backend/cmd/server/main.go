@@ -36,10 +36,12 @@ func main() {
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      r,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		Addr:        addr,
+		Handler:     r,
+		ReadTimeout: 10 * time.Second,
+		// WriteTimeout 设为 0：音频流接口需要长时间保持连接传输大文件，
+		// 普通 API 接口通过应用层控制响应时间。
+		WriteTimeout: 0,
 		IdleTimeout:  120 * time.Second,
 	}
 
