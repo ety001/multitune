@@ -162,10 +162,31 @@ func (h *Handler) GetPlaylist(c *gin.Context) {
 		return
 	}
 
-	// TODO: 实现歌曲列表查询后填充 songs
+	limit := parseInt(c.DefaultQuery("limit", "50"), 50)
+	offset := parseInt(c.DefaultQuery("offset", "0"), 0)
+	if limit > 200 {
+		limit = 200
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	songs, _, err := h.playlistRepo.ListSongs(id, limit, offset)
+	if err != nil {
+		slog.Error("查询歌单歌曲失败", "error", err, "id", id)
+		c.JSON(http.StatusInternalServerError, model.APIResponse{
+			Code:    9001,
+			Message: "内部错误",
+		})
+		return
+	}
+
 	resp := playlistDetailResponse{
 		Playlist: *playlist,
-		Songs:    []model.Song{},
+		Songs:    songs,
 	}
 
 	c.JSON(http.StatusOK, model.APIResponse{

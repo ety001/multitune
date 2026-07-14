@@ -156,3 +156,155 @@ func (r *PlaylistRepo) Delete(id string) (bool, error) {
 	}
 	return rows > 0, nil
 }
+
+// CountSongs 统计歌单内歌曲数量
+func (r *PlaylistRepo) CountSongs(playlistID string) (int, error) {
+	var count int
+	err := r.db.QueryRow(`
+		SELECT COUNT(*) FROM playlist_songs WHERE playlist_id = ?
+	`, playlistID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("统计歌单歌曲数量失败: %w", err)
+	}
+	return count, nil
+}
+
+// GetMaxSortOrder 获取歌单内最大排序号
+func (r *PlaylistRepo) GetMaxSortOrder(playlistID string) (int, error) {
+	var maxOrder sql.NullInt64
+	err := r.db.QueryRow(`
+		SELECT MAX(sort_order) FROM playlist_songs WHERE playlist_id = ?
+	`, playlistID).Scan(&maxOrder)
+	if err != nil {
+		return 0, fmt.Errorf("查询最大排序号失败: %w", err)
+	}
+	if !maxOrder.Valid {
+		return 0, nil
+	}
+	return int(maxOrder.Int64), nil
+}
+
+// AddSongs 添加歌曲到歌单，返回实际新增数量
+func (r *PlaylistRepo) AddSongs(playlistID string, songIDs []string) (int, error) {
+	if len(songIDs) == 0 {
+		return 0, nil
+	}
+
+	maxOrder, err := r.GetMaxSortOrder(playlistID)
+	if err != nil {
+		return 0, err
+	}
+
+	now := time.Now().Unix()
+	added := 0
+	for i, songID := range songIDs {
+		result, err := r.db.Exec(`
+			INSERT OR IGNORE INTO playlist_songs (playlist_id, song_id, sort_order, created_at)
+			VALUES (?, ?, ?, ?)
+		`, playlistID, songID, maxOrder+i+1, now)
+		if err != nil {
+			return added, fmt.Errorf("添加歌曲失败 %s: %w", songID, err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return added, fmt.Errorf("获取插入影响行数失败: %w", err)
+		}
+		if rows > 0 {
+			added++
+		}
+	}
+
+	return added, nil
+}
+
+// RemoveSong 从歌单移除歌曲
+func (r *PlaylistRepo) RemoveSong(playlistID, songID string) error {
+	_, err := r.db.Exec(`
+		DELETE FROM playlist_songs WHERE playlist_id = ? AND song_id = ?
+	`, playlistID, songID)
+	if err != nil {
+		return fmt.Errorf("移除歌曲失败: %w", err)
+	}
+	return nil
+}
+
+// UpdateSongOrder 调整歌单内歌曲顺序
+func (r *PlaylistRepo) UpdateSongOrder(playlistID string, songIDs []string) error {
+	if len(songIDs) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("开始事务失败: %w", err)
+	}
+	defer tx.Rollback()
+
+	now := time.Now().Unix()
+	for i, songID := range songIDs {
+		result, err := tx.Exec(`
+			UPDATE playlist_songs
+			SET sort_order = ?, created_at = ?
+			WHERE playlist_id = ? AND song_id = ?
+		`, i, now, playlistID, songID)
+		if err != nil {
+			return fmt.Errorf("更新歌曲顺序失败 %s: %w", songID, err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("获取更新影响行数失败: %w", err)
+		}
+		if rows == 0 {
+			return fmt.Errorf("歌曲不在歌单中: %s", songID)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("提交顺序更新事务失败: %w", err)
+	}
+
+	return nil
+}
+
+// ListSongs 获取歌单内歌曲列表（含总数）
+func (r *PlaylistRepo) ListSongs(playlistID string, limit, offset int) ([]model.Song, int, error) {
+	var total int
+	if err := r.db.QueryRow(`
+		SELECT COUNT(*) FROM playlist_songs WHERE playlist_id = ?
+	`, playlistID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("统计歌单歌曲失败: %w", err)
+	}
+
+	rows, err := r.db.Query(`
+		SELECT s.id, s.path, s.source, s.title, s.artist, s.album, s.duration, s.cover_url, s.created_at, s.updated_at,
+		       ps.sort_order
+		FROM playlist_songs ps
+		JOIN songs s ON ps.song_id = s.id
+		WHERE ps.playlist_id = ?
+		ORDER BY ps.sort_order ASC, ps.created_at ASC
+		LIMIT ? OFFSET ?
+	`, playlistID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("查询歌单歌曲失败: %w", err)
+	}
+	defer rows.Close()
+
+	var songs []model.Song
+	for rows.Next() {
+		var s model.Song
+		var artist, album, coverURL sql.NullString
+		if err := rows.Scan(&s.ID, &s.Path, &s.Source, &s.Title, &artist, &album, &s.Duration, &coverURL, &s.CreatedAt, &s.UpdatedAt, &s.SortOrder); err != nil {
+			return nil, 0, fmt.Errorf("扫描歌曲失败: %w", err)
+		}
+		s.Artist = artist.String
+		s.Album = album.String
+		s.CoverURL = coverURL.String
+		songs = append(songs, s)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("遍历歌单歌曲失败: %w", err)
+	}
+
+	return songs, total, nil
+}
