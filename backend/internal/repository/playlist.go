@@ -12,6 +12,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// ErrSongNotInPlaylist 歌曲不在歌单中
+var ErrSongNotInPlaylist = errors.New("歌曲不在歌单中")
+
 // PlaylistRepo 歌单数据访问
 type PlaylistRepo struct {
 	db *db.DB
@@ -240,13 +243,12 @@ func (r *PlaylistRepo) UpdateSongOrder(playlistID string, songIDs []string) erro
 	}
 	defer tx.Rollback()
 
-	now := time.Now().Unix()
 	for i, songID := range songIDs {
 		result, err := tx.Exec(`
 			UPDATE playlist_songs
-			SET sort_order = ?, created_at = ?
+			SET sort_order = ?
 			WHERE playlist_id = ? AND song_id = ?
-		`, i, now, playlistID, songID)
+		`, i, playlistID, songID)
 		if err != nil {
 			return fmt.Errorf("更新歌曲顺序失败 %s: %w", songID, err)
 		}
@@ -255,7 +257,7 @@ func (r *PlaylistRepo) UpdateSongOrder(playlistID string, songIDs []string) erro
 			return fmt.Errorf("获取更新影响行数失败: %w", err)
 		}
 		if rows == 0 {
-			return fmt.Errorf("歌曲不在歌单中: %s", songID)
+			return fmt.Errorf("%w: %s", ErrSongNotInPlaylist, songID)
 		}
 	}
 
@@ -289,7 +291,7 @@ func (r *PlaylistRepo) ListSongs(playlistID string, limit, offset int) ([]model.
 	}
 	defer rows.Close()
 
-	var songs []model.Song
+	songs := make([]model.Song, 0)
 	for rows.Next() {
 		var s model.Song
 		var artist, album, coverURL sql.NullString

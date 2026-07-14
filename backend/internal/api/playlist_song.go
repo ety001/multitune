@@ -1,9 +1,12 @@
 package api
 
 import (
+	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/ety001/multitune/internal/model"
+	"github.com/ety001/multitune/internal/repository"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,6 +32,7 @@ func (h *Handler) AddSongsToPlaylist(c *gin.Context) {
 
 	playlist, err := h.playlistRepo.GetByID(playlistID)
 	if err != nil {
+		slog.Error("查询歌单失败", "error", err, "id", playlistID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -46,33 +50,33 @@ func (h *Handler) AddSongsToPlaylist(c *gin.Context) {
 	var req addSongsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, model.APIResponse{
-			Code:    9001,
-			Message: "请求参数错误",
+			Code:    ErrCodeSongNotFound,
+			Message: "请求参数错误: song_ids 不能为空",
 		})
 		return
 	}
 
-	// 校验歌曲存在
-	for _, songID := range req.SongIDs {
-		song, err := h.songRepo.GetByID(songID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, model.APIResponse{
-				Code:    9001,
-				Message: "内部错误",
-			})
-			return
-		}
-		if song == nil {
-			c.JSON(http.StatusBadRequest, model.APIResponse{
-				Code:    ErrCodeSongNotFound,
-				Message: "歌曲不存在: " + songID,
-			})
-			return
-		}
+	// 批量校验歌曲存在性（避免 N+1 查询）
+	existingCount, err := h.songRepo.CountByIDs(req.SongIDs)
+	if err != nil {
+		slog.Error("批量校验歌曲失败", "error", err)
+		c.JSON(http.StatusInternalServerError, model.APIResponse{
+			Code:    9001,
+			Message: "内部错误",
+		})
+		return
+	}
+	if existingCount != len(req.SongIDs) {
+		c.JSON(http.StatusBadRequest, model.APIResponse{
+			Code:    ErrCodeSongNotFound,
+			Message: "部分歌曲不存在",
+		})
+		return
 	}
 
 	currentCount, err := h.playlistRepo.CountSongs(playlistID)
 	if err != nil {
+		slog.Error("统计歌单歌曲数量失败", "error", err, "playlist_id", playlistID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -89,6 +93,7 @@ func (h *Handler) AddSongsToPlaylist(c *gin.Context) {
 
 	added, err := h.playlistRepo.AddSongs(playlistID, req.SongIDs)
 	if err != nil {
+		slog.Error("添加歌曲到歌单失败", "error", err, "playlist_id", playlistID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -112,6 +117,7 @@ func (h *Handler) RemoveSongFromPlaylist(c *gin.Context) {
 
 	playlist, err := h.playlistRepo.GetByID(playlistID)
 	if err != nil {
+		slog.Error("查询歌单失败", "error", err, "id", playlistID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -127,6 +133,7 @@ func (h *Handler) RemoveSongFromPlaylist(c *gin.Context) {
 	}
 
 	if err := h.playlistRepo.RemoveSong(playlistID, songID); err != nil {
+		slog.Error("移除歌曲失败", "error", err, "playlist_id", playlistID, "song_id", songID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -147,6 +154,7 @@ func (h *Handler) UpdatePlaylistSongOrder(c *gin.Context) {
 
 	playlist, err := h.playlistRepo.GetByID(playlistID)
 	if err != nil {
+		slog.Error("查询歌单失败", "error", err, "id", playlistID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -164,13 +172,21 @@ func (h *Handler) UpdatePlaylistSongOrder(c *gin.Context) {
 	var req updateSongOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, model.APIResponse{
-			Code:    9001,
-			Message: "请求参数错误",
+			Code:    ErrCodeSongNotFound,
+			Message: "请求参数错误: song_ids 不能为空",
 		})
 		return
 	}
 
 	if err := h.playlistRepo.UpdateSongOrder(playlistID, req.SongIDs); err != nil {
+		if errors.Is(err, repository.ErrSongNotInPlaylist) {
+			c.JSON(http.StatusBadRequest, model.APIResponse{
+				Code:    ErrCodeSongNotInPlaylist,
+				Message: err.Error(),
+			})
+			return
+		}
+		slog.Error("更新歌曲顺序失败", "error", err, "playlist_id", playlistID)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",

@@ -174,7 +174,7 @@ func (h *Handler) GetPlaylist(c *gin.Context) {
 		offset = 0
 	}
 
-	songs, _, err := h.playlistRepo.ListSongs(id, limit, offset)
+	songs, songTotal, err := h.playlistRepo.ListSongs(id, limit, offset)
 	if err != nil {
 		slog.Error("查询歌单歌曲失败", "error", err, "id", id)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
@@ -183,6 +183,8 @@ func (h *Handler) GetPlaylist(c *gin.Context) {
 		})
 		return
 	}
+
+	playlist.SongCount = songTotal
 
 	resp := playlistDetailResponse{
 		Playlist: *playlist,
