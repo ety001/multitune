@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ety001/multitune/internal/db"
@@ -33,7 +34,7 @@ func (r *IdentityRepo) List() ([]model.Identity, error) {
 	}
 	defer rows.Close()
 
-	var identities []model.Identity
+	identities := make([]model.Identity, 0)
 	for rows.Next() {
 		var i model.Identity
 		var isDefault int
@@ -121,42 +122,42 @@ func (r *IdentityRepo) Create(name, avatarColor string, sortOrder int) (*model.I
 	return r.GetByID(id)
 }
 
-// Update 更新身份
+// Update 更新身份（单条 SQL，避免 read-modify-write 竞态）
 func (r *IdentityRepo) Update(id string, name, avatarColor *string, sortOrder *int) (*model.Identity, error) {
-	identity, err := r.GetByID(id)
+	// 先检查是否存在
+	existing, err := r.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
-	if identity == nil {
+	if existing == nil {
 		return nil, nil
 	}
 
+	now := time.Now().Unix()
+
+	// 动态拼接 SET 子句，只更新传入的字段
+	setParts := []string{"updated_at = ?"}
+	args := []interface{}{now}
 	if name != nil {
-		identity.Name = *name
+		setParts = append(setParts, "name = ?")
+		args = append(args, *name)
 	}
 	if avatarColor != nil {
-		identity.AvatarColor = *avatarColor
+		setParts = append(setParts, "avatar_color = ?")
+		args = append(args, *avatarColor)
 	}
 	if sortOrder != nil {
-		identity.SortOrder = *sortOrder
+		setParts = append(setParts, "sort_order = ?")
+		args = append(args, *sortOrder)
 	}
-	identity.UpdatedAt = time.Now().Unix()
+	args = append(args, id)
 
-	var isDefault int
-	if identity.IsDefault {
-		isDefault = 1
-	}
-
-	_, err = r.db.Exec(`
-		UPDATE identities
-		SET name = ?, avatar_color = ?, sort_order = ?, is_default = ?, updated_at = ?
-		WHERE id = ?
-	`, identity.Name, identity.AvatarColor, identity.SortOrder, isDefault, identity.UpdatedAt, id)
-	if err != nil {
+	query := "UPDATE identities SET " + strings.Join(setParts, ", ") + " WHERE id = ?"
+	if _, err := r.db.Exec(query, args...); err != nil {
 		return nil, fmt.Errorf("更新身份失败: %w", err)
 	}
 
-	return identity, nil
+	return r.GetByID(id)
 }
 
 // Delete 删除身份
@@ -227,17 +228,13 @@ func (r *IdentityRepo) SetDefault(id string) (*model.Identity, error) {
 
 	now := time.Now().Unix()
 
-	// 取消其他默认身份
+	// 单条 UPDATE 同时取消旧默认 + 设置新默认
 	if _, err := tx.Exec(`
-		UPDATE identities SET is_default = 0, updated_at = ? WHERE is_default = 1
-	`, now); err != nil {
-		return nil, fmt.Errorf("取消默认身份失败: %w", err)
-	}
-
-	// 设置当前为默认
-	if _, err := tx.Exec(`
-		UPDATE identities SET is_default = 1, updated_at = ? WHERE id = ?
-	`, now, id); err != nil {
+		UPDATE identities
+		SET is_default = CASE WHEN id = ? THEN 1 ELSE 0 END,
+		    updated_at = ?
+		WHERE is_default = 1 OR id = ?
+	`, id, now, id); err != nil {
 		return nil, fmt.Errorf("设置默认身份失败: %w", err)
 	}
 

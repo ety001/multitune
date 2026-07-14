@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/ety001/multitune/internal/model"
@@ -10,7 +11,7 @@ import (
 // createIdentityRequest 创建身份请求
 type createIdentityRequest struct {
 	Name        string `json:"name" binding:"required"`
-	AvatarColor string `json:"avatar_color" binding:"required"`
+	AvatarColor string `json:"avatar_color"`
 	SortOrder   int    `json:"sort_order"`
 }
 
@@ -44,6 +45,7 @@ const (
 func (h *Handler) ListIdentities(c *gin.Context) {
 	identities, err := h.identityRepo.List()
 	if err != nil {
+		slog.Error("查询身份列表失败", "error", err)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -67,13 +69,18 @@ func (h *Handler) CreateIdentity(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, model.APIResponse{
 			Code:    ErrCodeIdentityNameEmpty,
-			Message: "身份名称和颜色不能为空",
+			Message: "身份名称不能为空",
 		})
 		return
 	}
 
+	if req.AvatarColor == "" {
+		req.AvatarColor = "#6366f1"
+	}
+
 	count, err := h.identityRepo.Count()
 	if err != nil {
+		slog.Error("统计身份数量失败", "error", err)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -90,6 +97,7 @@ func (h *Handler) CreateIdentity(c *gin.Context) {
 
 	identity, err := h.identityRepo.Create(req.Name, req.AvatarColor, req.SortOrder)
 	if err != nil {
+		slog.Error("创建身份失败", "error", err)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -109,6 +117,7 @@ func (h *Handler) GetIdentity(c *gin.Context) {
 	id := c.Param("id")
 	identity, err := h.identityRepo.GetByID(id)
 	if err != nil {
+		slog.Error("查询身份失败", "error", err, "id", id)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -158,6 +167,7 @@ func (h *Handler) UpdateIdentity(c *gin.Context) {
 
 	identity, err := h.identityRepo.Update(id, req.Name, req.AvatarColor, req.SortOrder)
 	if err != nil {
+		slog.Error("更新身份失败", "error", err, "id", id)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -182,7 +192,27 @@ func (h *Handler) UpdateIdentity(c *gin.Context) {
 // DeleteIdentity DELETE /api/identities/:id
 func (h *Handler) DeleteIdentity(c *gin.Context) {
 	id := c.Param("id")
+
+	// 先检查身份是否存在
+	identity, err := h.identityRepo.GetByID(id)
+	if err != nil {
+		slog.Error("查询身份失败", "error", err, "id", id)
+		c.JSON(http.StatusInternalServerError, model.APIResponse{
+			Code:    9001,
+			Message: "内部错误",
+		})
+		return
+	}
+	if identity == nil {
+		c.JSON(http.StatusNotFound, model.APIResponse{
+			Code:    ErrCodeIdentityNotFound,
+			Message: "身份不存在",
+		})
+		return
+	}
+
 	if err := h.identityRepo.Delete(id); err != nil {
+		slog.Error("删除身份失败", "error", err, "id", id)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -202,6 +232,7 @@ func (h *Handler) SetDefaultIdentity(c *gin.Context) {
 	id := c.Param("id")
 	identity, err := h.identityRepo.SetDefault(id)
 	if err != nil {
+		slog.Error("设置默认身份失败", "error", err, "id", id)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
