@@ -189,3 +189,22 @@ func (r *SongRepo) Delete(id string) error {
 	}
 	return nil
 }
+
+// CountByIDs 批量校验歌曲 ID 存在性，返回存在的数量
+func (r *SongRepo) CountByIDs(ids []string) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	query := "SELECT COUNT(*) FROM songs WHERE id IN (" + strings.Join(placeholders, ",") + ")"
+	var count int
+	if err := r.db.QueryRow(query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("批量校验歌曲失败: %w", err)
+	}
+	return count, nil
+}

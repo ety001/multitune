@@ -38,6 +38,9 @@ func (h *Handler) SetupRouter() *gin.Engine {
 		api.GET("/playlists/:id", h.GetPlaylist)
 		api.PUT("/playlists/:id", h.UpdatePlaylist)
 		api.DELETE("/playlists/:id", h.DeletePlaylist)
+		api.POST("/playlists/:id/songs", h.AddSongsToPlaylist)
+		api.DELETE("/playlists/:id/songs/:songId", h.RemoveSongFromPlaylist)
+		api.PUT("/playlists/:id/songs/order", h.UpdatePlaylistSongOrder)
 
 		// 文件浏览器 API
 		api.GET("/fs/sources", h.ListStorageSources)
