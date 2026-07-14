@@ -316,6 +316,11 @@ SongProgress（单曲进度记忆，满足 P0 需求）:
   - updated_at: int
 ```
 
+**数据模型说明**：
+- `playback_states` 记录每个身份**当前正在播放**的位置，用于上车后自动续播。
+- `song_progress` 记录每个身份下**每首歌**上次播放到的位置，用于切换回某首歌时从该位置续播。
+- 播放过程中同时更新两张表：当前播放进度写入 `playback_states`，当前歌曲进度也写入 `song_progress`。
+
 ### 6.5 后端 API 设计（初稿）
 
 #### 身份 API
