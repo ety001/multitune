@@ -1,6 +1,6 @@
 # 多音盒 MultiTune — API 接口与数据库设计
 
-> 文档版本：v0.1
+> 文档版本：v0.3（审计修订版）
 > 关联文档：`car-music-multi-identity-prd.md`
 
 ---
@@ -78,7 +78,7 @@ CREATE TABLE identities (
     name TEXT NOT NULL,
     avatar_color TEXT NOT NULL DEFAULT '#6366f1',
     sort_order INTEGER NOT NULL DEFAULT 0,
-    is_default INTEGER NOT NULL DEFAULT 0,
+    is_default INTEGER NOT NULL DEFAULT 0 CHECK(is_default IN (0, 1)),
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
@@ -126,11 +126,22 @@ CREATE TABLE playback_states (
     playlist_id TEXT,
     song_id TEXT,
     position INTEGER NOT NULL DEFAULT 0,
-    mode TEXT NOT NULL DEFAULT 'order',
+    mode TEXT NOT NULL DEFAULT 'order' CHECK(mode IN ('order', 'random', 'single-loop')),
     updated_at INTEGER NOT NULL,
     FOREIGN KEY (identity_id) REFERENCES identities(id) ON DELETE CASCADE,
     FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE SET NULL,
     FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE SET NULL
+);
+
+-- 单曲进度记忆表（满足 P0：记住每首歌上次播放到的位置）
+CREATE TABLE song_progress (
+    identity_id TEXT NOT NULL,
+    song_id TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (identity_id, song_id),
+    FOREIGN KEY (identity_id) REFERENCES identities(id) ON DELETE CASCADE,
+    FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
 );
 
 -- 索引
@@ -139,6 +150,10 @@ CREATE INDEX idx_playlist_songs_playlist_id ON playlist_songs(playlist_id);
 CREATE INDEX idx_playlist_songs_song_id ON playlist_songs(song_id);
 CREATE INDEX idx_songs_path ON songs(path);
 CREATE INDEX idx_songs_source ON songs(source);
+CREATE INDEX idx_song_progress_identity_id ON song_progress(identity_id);
+
+-- 唯一默认身份约束：全局最多一个 is_default=1
+CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_default = 1;
 ```
 
 ### 2.2 字段说明
@@ -197,14 +212,29 @@ CREATE INDEX idx_songs_source ON songs(source);
 | mode | TEXT | 播放模式：order / random / single-loop |
 | updated_at | INTEGER | 更新时间戳 |
 
+> **注意**：playback_states 记录的是"该身份上次播放到哪了"，只跟踪当前歌曲。单曲级别的进度记忆（切走再回来续播）由 song_progress 表承担。
+
+#### song_progress
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| identity_id | TEXT | 身份 ID（联合主键） |
+| song_id | TEXT | 歌曲 ID（联合主键） |
+| position | INTEGER | 该歌曲上次播放到的位置（秒） |
+| updated_at | INTEGER | 更新时间戳 |
+
+> 用途：满足 PRD P0 需求"记住每首歌上次播放到的位置，再次播放时续播"。切歌时将当前歌曲 position 写入此表；再次播放某首歌时从此表读取上次位置。
+
 ### 2.3 数据约束
 
 - 一个身份下最多 N 个歌单（默认 50，可通过配置调整）。
 - 一个歌单中最多 N 首歌曲（默认 1000）。
 - `songs.path` 唯一，避免同一文件重复入库。
-- 删除身份时，级联删除其歌单、歌单-歌曲关联、播放状态。
+- 删除身份时，级联删除其歌单、歌单-歌曲关联、播放状态、单曲进度。
 - 删除歌单时，只删除关联，不删除 `songs` 表记录。
-- 删除歌曲时，级联删除歌单-歌曲关联，播放状态中的 song_id 设为 NULL。
+- 删除歌曲时，级联删除歌单-歌曲关联，播放状态中的 song_id 设为 NULL；`song_progress` 中对应记录级联删除。
+- `identities.is_default` 受 partial unique index 约束，全局最多一条 `is_default=1`。
+- `playback_states.mode` 受 CHECK 约束，仅允许 `order` / `random` / `single-loop`。
+- `identities.is_default` 受 CHECK 约束，仅允许 `0` / `1`。
 
 ---
 
@@ -372,13 +402,12 @@ CREATE INDEX idx_songs_source ON songs(source);
 }
 ```
 
-#### POST /api/playlists
-创建歌单。
+#### POST /api/identities/:id/playlists
+创建歌单（归属于指定身份）。
 
 **请求体**：
 ```json
 {
-  "identity_id": "uuid-1",
   "name": "跑山",
   "sort_order": 1
 }
@@ -402,7 +431,11 @@ CREATE INDEX idx_songs_source ON songs(source);
 ```
 
 #### GET /api/playlists/:id
-获取歌单详情（含歌曲列表）。
+获取歌单详情（含歌曲列表，支持分页）。
+
+**查询参数**：
+- `limit`: 每页歌曲数量，默认 50，最大 200
+- `offset`: 偏移量，默认 0
 
 **响应**：
 ```json
@@ -415,6 +448,7 @@ CREATE INDEX idx_songs_source ON songs(source);
     "name": "通勤",
     "cover_url": null,
     "sort_order": 0,
+    "song_count": 120,
     "songs": [
       {
         "id": "song-1",
@@ -434,6 +468,10 @@ CREATE INDEX idx_songs_source ON songs(source);
 }
 ```
 
+**说明**：
+- `song_count` 始终返回歌单中歌曲总数，`songs` 数组长度受 `limit`/`offset` 控制。
+- 车机端首次加载建议 `limit=50`，滚动加载更多。
+
 #### PUT /api/playlists/:id
 更新歌单。
 
@@ -441,9 +479,12 @@ CREATE INDEX idx_songs_source ON songs(source);
 ```json
 {
   "name": "通勤-改",
+  "cover_url": "/covers/pl-1.jpg",
   "sort_order": 2
 }
 ```
+
+**说明**：字段均可选，传入什么更新什么。可更新字段：`name`、`cover_url`、`sort_order`。
 
 #### DELETE /api/playlists/:id
 删除歌单。
@@ -523,8 +564,11 @@ CREATE INDEX idx_songs_source ON songs(source);
 
 **说明**：
 - 扫描是幂等的，同一目录多次扫描不会重复入库。
+- **source 字段推断**：根据扫描路径相对于 `MEDIA_ROOT` 的第一级子目录自动确定。例如 `/app/media/home/music` → source 为 `home`；`/app/media/usb/songs` → source 为 `usb`。
+- **re-scan 更新策略**：如果文件已存在（按 `path` 匹配），使用 `INSERT OR REPLACE` 语义更新元数据（title/artist/album/duration/cover_url），这样用户修改 ID3 标签后重新扫描可生效。
 - 扫描只发现支持的音频格式：mp3, flac, m4a, aac, ogg, wav。
 - 扫描过程异步或同步均可，目录大时建议返回任务 ID（V1 可简化为同步）。
+- **并发限流**：同一时间只允许一个扫描任务运行，新请求返回 1003-like 错误码（或 HTTP 409）。
 
 #### GET /api/songs
 歌曲列表/搜索。
@@ -557,14 +601,16 @@ CREATE INDEX idx_songs_source ON songs(source);
 - 如果歌曲文件内嵌封面，直接提取返回。
 - 如果没有内嵌封面，返回默认封面图片。
 - 响应 `Content-Type: image/jpeg` 或 `image/png`。
+- 响应头包含 `Cache-Control: public, max-age=86400`（1 天），减少车机端重复请求。封面前缀加 `ETag`（基于 song_id + updated_at），支持 `If-None-Match` 协商缓存。
 
-#### GET /api/stream?songId=xxx
+#### GET /api/songs/:id/stream
 音频流。
 
 **说明**：
 - 支持 HTTP Range 请求。
 - 根据文件扩展名返回正确 MIME 类型。
 - 现代版和简化版播放器均使用该接口播放。
+- 响应头包含 `Accept-Ranges: bytes`。
 
 ---
 
@@ -580,13 +626,18 @@ CREATE INDEX idx_songs_source ON songs(source);
   "message": "ok",
   "data": {
     "items": [
-      { "id": "home", "name": "主目录", "path": "/app/media/home" },
-      { "id": "usb", "name": "USB 存储", "path": "/app/media/usb" },
-      { "id": "smb", "name": "SMB 共享", "path": "/app/media/smb" }
+      { "id": "home", "name": "主目录", "path": "/app/media/home", "available": true },
+      { "id": "usb", "name": "USB 存储", "path": "/app/media/usb", "available": false },
+      { "id": "smb", "name": "SMB 共享", "path": "/app/media/smb", "available": true }
     ]
   }
 }
 ```
+
+**说明**：
+- `available` 表示该存储源目录当前是否可访问（USB 拔出/SMB 断开时为 `false`）。
+- 后端通过检查目录是否存在且可读来确定 `available`。
+- 前端应根据 `available` 标记不可用的存储源和其中的歌曲，提示用户而非报错。
 
 #### GET /api/fs/list?path=xxx
 列出指定路径下的文件和文件夹。
@@ -677,7 +728,17 @@ CREATE INDEX idx_songs_source ON songs(source);
 
 ---
 
-### 3.6 通用 API
+### 3.6 音量控制
+
+PRD 3.3 中音量控制为 P0 功能。
+
+**设计决策**：音量控制为纯前端行为，通过 HTML5 `<audio>` 元素的 `volume` 属性（0.0~1.0）实现，无需后端 API。
+
+- 前端 `audio.volume` 控制 WebView 内音频输出音量。
+- 注意：`audio.volume` 只能控制媒体音量，不能控制系统全局音量。PRD 中"系统音量联动"修正为"媒体音量控制"。
+- 音量偏好可由前端 localStorage 按身份记忆，不需要后端持久化（V1）。如后续需要跨设备同步音量偏好，再扩展 `playback_states` 表。
+
+### 3.7 通用 API
 
 #### GET /api/healthz
 健康检查。
@@ -783,11 +844,11 @@ CREATE TABLE IF NOT EXISTS _migrations (
 
 ## 七、文件扫描与索引流程
 
-### 4.1 扫描触发时机
+### 7.1 扫描触发时机
 1. 用户在文件浏览器中选择文件夹并点击"扫描"。
 2. 添加歌曲到歌单时，如果歌曲不在 `songs` 表中，自动扫描单个文件元数据。
 
-### 4.2 扫描流程
+### 7.2 扫描流程
 ```
 1. 校验路径是否在 /app/media/ 下
 2. 递归遍历目录
@@ -798,13 +859,13 @@ CREATE TABLE IF NOT EXISTS _migrations (
 7. 返回扫描结果
 ```
 
-### 4.3 元数据读取
+### 7.3 元数据读取
 - **优先**：使用 Go 音频元数据库（如 `github.com/bogem/id3v2`、`github.com/mikkyang/id3-go`）读取 ID3。
 - **fallback**：如果无 ID3 标签，标题使用文件名（去掉扩展名）。
 - **时长**：使用 `github.com/tcolgate/mp3` 或调用 `ffprobe`。
 - **封面**：内嵌封面提取后缓存到 `/app/data/covers/` 下，按 song_id 命名。
 
-### 4.4 封面缓存
+### 7.4 封面缓存
 ```
 /app/data/
   ├── multitune.db
@@ -867,7 +928,7 @@ xhr.send();
 - `GET /api/playlists/:id`
 - `GET /api/playback/:identityId`
 - `POST /api/playback/:identityId`
-- `GET /api/stream?songId=xxx`
+- `GET /api/songs/:id/stream`
 - `GET /api/fs/sources`
 - `GET /api/fs/list?path=xxx`
 

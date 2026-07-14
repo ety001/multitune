@@ -93,7 +93,7 @@
 | 播放列表 | 当前歌单歌曲列表，点击切歌 | P0 |
 | 播放模式 | 顺序播放、随机播放、单曲循环 | P0 |
 | 进度条 | 可拖动，显示当前时间/总时长 | P0 |
-| 音量控制 | 系统音量联动，UI 上提供音量调节滑块 | P0 |
+| 音量控制 | 媒体音量调节滑块（`audio.volume`），按身份记忆偏好 | P0 |
 | 封面显示 | 读取歌曲内嵌封面或歌单默认封面 | P2 |
 
 ### 3.4 记忆功能
@@ -308,6 +308,12 @@ PlaybackState（播放状态，每个身份一条）:
   - position: int         # 秒
   - mode: string          # 'order' | 'random' | 'single-loop'
   - updated_at: int
+
+SongProgress（单曲进度记忆，满足 P0 需求）:
+  - identity_id: string   # 联合主键
+  - song_id: string       # 联合主键
+  - position: int         # 该歌曲上次播放到的位置（秒）
+  - updated_at: int
 ```
 
 ### 6.5 后端 API 设计（初稿）
@@ -325,7 +331,7 @@ POST   /api/identities/:id/default  # 设为默认身份
 #### 歌单 API
 ```
 GET    /api/identities/:id/playlists     # 获取身份下的歌单
-POST   /api/playlists                   # 创建歌单
+POST   /api/identities/:id/playlists     # 创建歌单（归属于指定身份）
 GET    /api/playlists/:id               # 获取歌单详情（含歌曲）
 PUT    /api/playlists/:id               # 更新歌单
 DELETE /api/playlists/:id               # 删除歌单
@@ -340,7 +346,7 @@ POST   /api/scan                # 扫描指定目录，返回发现的歌曲
 GET    /api/songs               # 歌曲列表/搜索
 GET    /api/songs/:id           # 歌曲详情
 GET    /api/songs/:id/cover     # 歌曲封面
-GET    /api/stream?songId=xxx   # 音频流（支持 Range）
+GET    /api/songs/:id/stream   # 音频流（支持 Range）
 ```
 
 #### 文件浏览器 API
@@ -353,9 +359,9 @@ GET    /api/fs/search?q=xxx     # 跨存储源搜索歌曲
 存储源示例响应：
 ```json
 [
-  { "id": "home", "name": "主目录", "path": "/app/media/home" },
-  { "id": "usb", "name": "USB 存储", "path": "/app/media/usb" },
-  { "id": "smb", "name": "SMB 共享", "path": "/app/media/smb" }
+  { "id": "home", "name": "主目录", "path": "/app/media/home", "available": true },
+  { "id": "usb", "name": "USB 存储", "path": "/app/media/usb", "available": false },
+  { "id": "smb", "name": "SMB 共享", "path": "/app/media/smb", "available": true }
 ]
 ```
 
@@ -376,7 +382,7 @@ POST   /api/device-info        # 接收并记录车机设备信息（参考 lzc-
 老版本 WebView 对直接播放 `file://` 路径支持不稳定，必须由后端提供音频流：
 
 ```
-GET /api/stream?songId=xxx
+GET /api/songs/:id/stream
 ```
 
 实现要点：
@@ -441,28 +447,25 @@ services:
 # Stage 1: 构建 Vue 3 现代版前端
 FROM node:22-alpine AS frontend-builder
 WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci
+RUN corepack enable && corepack prepare pnpm@latest --activate
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
-RUN npm run build
+RUN pnpm build
 
-# Stage 2: 构建 Go 后端
+# Stage 2: 构建 Go 后端（CGO-free，使用 modernc.org/sqlite）
 FROM golang:1.23-alpine AS backend-builder
-RUN apk add --no-cache gcc musl-dev
 WORKDIR /app/backend
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 COPY backend/ ./
-# 静态链接，兼容 musl/glibc
-RUN CGO_ENABLED=1 go build \
-    -ldflags="-s -w -extldflags '-static'" \
+RUN CGO_ENABLED=0 go build \
+    -ldflags="-s -w" \
     -o /multitune-server ./cmd/server
 
-# Stage 3: 运行时
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+# Stage 3: 运行时（alpine 精简镜像）
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates curl ffmpeg
 
 COPY --from=backend-builder /multitune-server /usr/local/bin/multitune-server
 COPY --from=frontend-builder /app/frontend/dist /app/static
@@ -475,9 +478,11 @@ ENTRYPOINT ["/usr/local/bin/multitune-server"]
 ```
 
 说明：
+- 使用 `modernc.org/sqlite`（CGO-free），`CGO_ENABLED=0` 静态编译，无需 gcc。
+- 前端用 pnpm 替代 npm，符合项目统一包管理器。
+- 运行时改用 alpine（约 5MB），配合 ffmpeg apk 包，总镜像体积显著小于 debian 方案。
 - `simple/` 目录下的纯 HTML 文件直接复制到 `/app/static/simple/`，由 Go 静态文件中间件服务。
 - Vue 构建产物挂载到 `/app/static/`，入口 `index.html` 内嵌浏览器检测脚本。
-- 静态二进制避免 libc 兼容问题。
 
 ### 7.6 lzc-manifest.yml 示例
 
