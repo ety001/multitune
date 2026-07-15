@@ -1,0 +1,256 @@
+/* 简化版全局样式（ES5/老浏览器友好，不使用 Flexbox/Grid） */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  min-height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.simple-body {
+  display: block;
+  min-height: 100%;
+}
+
+.simple-header {
+  padding: 24px;
+  text-align: center;
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.simple-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.simple-subtitle {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.simple-content {
+  display: block;
+  padding: 20px;
+}
+
+.simple-footer {
+  padding: 16px;
+  text-align: center;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+/* 按钮 */
+.simple-btn {
+  display: inline-block;
+  padding: 14px 28px;
+  font-size: 16px;
+  border-radius: 12px;
+  text-decoration: none;
+  text-align: center;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.simple-btn-primary {
+  background: #6366f1;
+  color: #fff;
+}
+
+.simple-btn-secondary {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+}
+
+.simple-btn:active {
+  opacity: 0.8;
+}
+
+/* 状态提示 */
+.loading, .empty, .error {
+  padding: 40px 20px;
+  text-align: center;
+  font-size: 16px;
+  border-radius: 12px;
+}
+
+.loading {
+  color: #94a3b8;
+}
+
+.empty {
+  color: #64748b;
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.error {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* 身份卡片网格（inline-block 布局，兼容老浏览器） */
+.identity-grid {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  text-align: center;
+  font-size: 0; /* 消除 inline-block 间隙 */
+}
+
+.identity-card {
+  position: relative;
+  display: inline-block;
+  vertical-align: top;
+  width: 45%;
+  min-height: 120px;
+  margin: 0 2% 16px;
+  padding: 20px;
+  border-radius: 16px;
+  text-decoration: none;
+  color: #fff;
+  font-size: 20px;
+  font-weight: bold;
+  text-align: center;
+  line-height: 120px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.15s;
+  /* 用 table-cell 模拟垂直居中 */
+}
+
+.identity-card:active {
+  opacity: 0.8;
+}
+
+.identity-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: normal;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  line-height: normal;
+}
+
+/* 列表页通用 */
+.list-container {
+  display: block;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.list-item {
+  display: block;
+  padding: 18px 20px;
+  margin-bottom: 12px;
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 12px;
+  text-decoration: none;
+  color: #e2e8f0;
+  transition: opacity 0.15s;
+}
+
+.list-item:active {
+  opacity: 0.8;
+}
+
+.list-item-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.list-item-meta {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* 播放器页 */
+.player-info {
+  display: block;
+  text-align: center;
+  padding: 30px 20px;
+}
+
+.player-cover {
+  width: 180px;
+  height: 180px;
+  margin: 0 auto 24px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  text-align: center;
+  line-height: 180px;
+  font-size: 72px;
+  color: #fff;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.25);
+}
+
+.player-title {
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.player-artist {
+  font-size: 15px;
+  color: #94a3b8;
+}
+
+.player-controls {
+  display: block;
+  text-align: center;
+  padding: 20px;
+  font-size: 0; /* 消除 inline-block 间隙 */
+}
+
+.player-control-btn {
+  display: inline-block;
+  vertical-align: middle;
+  width: 64px;
+  height: 64px;
+  margin: 0 12px;
+  border-radius: 50%;
+  border: none;
+  background: #6366f1;
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  text-align: center;
+  line-height: 64px;
+}
+
+.player-control-btn:active {
+  opacity: 0.85;
+}
+
+.player-control-btn.large {
+  width: 84px;
+  height: 84px;
+  font-size: 32px;
+  line-height: 84px;
+}
+
+/* footer 多按钮居中 */
+.simple-footer .simple-btn {
+  margin: 0 6px;
+}
+
+/* 响应式：车机横屏优先 */
+@media (min-width: 600px) {
+  .identity-card {
+    width: 30%;
+    min-height: 140px;
+    font-size: 22px;
+    line-height: 140px;
+  }
+}

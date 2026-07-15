@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/ety001/multitune/internal/model"
@@ -62,10 +63,22 @@ func (h *Handler) SetupRouter() *gin.Engine {
 		api.POST("/playback/:identityId", h.SavePlaybackState)
 	}
 
-	// 静态文件服务
+	// 静态文件服务（避免根路径通配与 /api 冲突，分别挂载子目录）
 	staticPath := h.cfg.StaticPath
-	if _, err := os.Stat(staticPath); err == nil {
-		r.Static("/", staticPath)
+	if info, err := os.Stat(staticPath); err == nil && info.IsDir() {
+		simplePath := filepath.Join(staticPath, "simple")
+		modernPath := filepath.Join(staticPath, "modern")
+		indexPath := filepath.Join(staticPath, "index.html")
+
+		if _, err := os.Stat(simplePath); err == nil {
+			r.Static("/simple", simplePath)
+		}
+		if _, err := os.Stat(modernPath); err == nil {
+			r.Static("/modern", modernPath)
+		}
+		if _, err := os.Stat(indexPath); err == nil {
+			r.GET("/", serveIndex(indexPath))
+		}
 	} else {
 		slog.Warn("静态文件目录不存在，仅提供 API 服务", "path", staticPath)
 	}
@@ -85,6 +98,13 @@ func (h *Handler) SetupRouter() *gin.Engine {
 	})
 
 	return r
+}
+
+// serveIndex 返回入口页文件
+func serveIndex(indexPath string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.File(indexPath)
+	}
 }
 
 // corsMiddleware 跨域中间件

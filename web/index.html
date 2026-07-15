@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>多音盒 MultiTune</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      overflow: hidden;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      padding: 24px;
+      text-align: center;
+    }
+    .logo {
+      width: 96px;
+      height: 96px;
+      margin-bottom: 24px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      font-weight: bold;
+      color: #fff;
+      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+    }
+    h1 {
+      font-size: 32px;
+      margin-bottom: 8px;
+      letter-spacing: 2px;
+    }
+    .subtitle {
+      font-size: 16px;
+      color: #94a3b8;
+      margin-bottom: 48px;
+    }
+    .status {
+      font-size: 18px;
+      color: #cbd5e1;
+      margin-bottom: 24px;
+      min-height: 28px;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-top-color: #8b5cf6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 32px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .manual-links {
+      display: flex;
+      gap: 16px;
+    }
+    .manual-links a {
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 14px;
+      padding: 8px 16px;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+    .manual-links a:hover,
+    .manual-links a:active {
+      color: #fff;
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">音</div>
+    <h1>多音盒</h1>
+    <div class="subtitle">MultiTune · 车机多身份音乐播放器</div>
+    <div class="status" id="status">正在检测浏览器...</div>
+    <div class="spinner" id="spinner"></div>
+    <div class="manual-links">
+      <a href="/simple/" id="simpleLink">进入简化版</a>
+      <a href="/modern/" id="modernLink">进入现代版</a>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      function detectBrowser() {
+        var ua = navigator.userAgent || navigator.vendor || window.opera;
+        var chromeVersion = null;
+        var webviewVersion = null;
+        var chromeMatch = ua.match(/Chrome\/(\d+)/);
+        if (chromeMatch) {
+          chromeVersion = parseInt(chromeMatch[1], 10);
+        }
+        var webviewMatch = ua.match(/wv.*Chrome\/(\d+)/i);
+        if (webviewMatch) {
+          webviewVersion = parseInt(webviewMatch[1], 10);
+        }
+        return {
+          userAgent: ua,
+          chromeVersion: chromeVersion,
+          webviewVersion: webviewVersion,
+          isWebview: webviewMatch !== null
+        };
+      }
+
+      function collectDeviceInfo() {
+        var browser = detectBrowser();
+        return {
+          userAgent: browser.userAgent,
+          chromeVersion: browser.chromeVersion,
+          webViewVersion: browser.webviewVersion,
+          isWebView: browser.isWebview,
+          screenWidth: window.screen ? window.screen.width : 0,
+          screenHeight: window.screen ? window.screen.height : 0,
+          windowWidth: window.innerWidth || document.documentElement.clientWidth || 0,
+          windowHeight: window.innerHeight || document.documentElement.clientHeight || 0,
+          language: navigator.language || navigator.userLanguage || '',
+          platform: navigator.platform || 'unknown',
+          cookieEnabled: !!navigator.cookieEnabled,
+          onLine: navigator.onLine === true,
+          timestamp: new Date().toISOString()
+        };
+      }
+
+      function shouldUseSimple(browser) {
+        // URL 参数强制指定版本
+        var search = window.location.search || '';
+        if (search.indexOf('v=simple') !== -1) return true;
+        if (search.indexOf('v=modern') !== -1) return false;
+
+        // WebView 版本 <= 74 使用简化版
+        if (browser.isWebview && browser.webviewVersion !== null && browser.webviewVersion <= 74) {
+          return true;
+        }
+        // Chrome 版本 <= 74 使用简化版
+        if (browser.chromeVersion !== null && browser.chromeVersion <= 74) {
+          return true;
+        }
+        // 检测不到版本时保守使用简化版
+        if (browser.chromeVersion === null && browser.webviewVersion === null) {
+          return true;
+        }
+        return false;
+      }
+
+      function sendDeviceInfo(info, callback) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/device-info', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState === 4) {
+            callback(xhr.status === 200);
+          }
+        };
+        xhr.onerror = function() {
+          callback(false);
+        };
+        try {
+          xhr.send(JSON.stringify(info));
+        } catch (e) {
+          callback(false);
+        }
+      }
+
+      function redirect(url, delay) {
+        setTimeout(function() {
+          window.location.href = url;
+        }, delay);
+      }
+
+      var statusEl = document.getElementById('status');
+      var browser = detectBrowser();
+      var useSimple = shouldUseSimple(browser);
+      var targetUrl = useSimple ? '/simple/' : '/modern/';
+
+      statusEl.textContent = useSimple
+        ? '检测到老版本浏览器，即将进入简化版...'
+        : '正在进入现代版...';
+
+      var deviceInfo = collectDeviceInfo();
+      sendDeviceInfo(deviceInfo, function() {
+        redirect(targetUrl, 500);
+      });
+
+      // 无论上报是否成功，兜底跳转
+      redirect(targetUrl, 2500);
+    })();
+  </script>
+</body>
+</html>

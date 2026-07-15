@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>选择身份 - 多音盒</title>
+  <link rel="stylesheet" href="./css/simple.css">
+</head>
+<body class="simple-body">
+  <div class="simple-header">
+    <div class="simple-title">多音盒</div>
+    <div class="simple-subtitle">选择身份开始播放</div>
+  </div>
+
+  <div class="simple-content">
+    <div class="identity-grid" id="identityGrid">
+      <div class="loading">正在加载身份...</div>
+    </div>
+  </div>
+
+  <div class="simple-footer">
+    <a href="/" class="simple-btn simple-btn-secondary">返回入口</a>
+  </div>
+
+  <script src="./js/jquery-3.7.1.min.js"></script>
+  <script src="./js/app.js"></script>
+  <script>
+    (function() {
+      var $grid = $('#identityGrid');
+
+      function renderIdentities(items) {
+        if (!items || items.length === 0) {
+          MultiTune.showEmpty($grid, '暂无身份，请在现代版或 PC 端创建');
+          return;
+        }
+
+        var html = '';
+        for (var i = 0; i < items.length; i++) {
+          var id = items[i];
+          var color = id.avatar_color || '#6366f1';
+          var name = id.name || '未命名';
+          var defaultBadge = id.is_default ? '<span class="identity-badge">默认</span>' : '';
+          html += '<a href="./playlist.html?identity_id=' + encodeURIComponent(id.id) + '" class="identity-card" style="background:' + color + '">';
+          html += '<div class="identity-name">' + escapeHtml(name) + '</div>';
+          html += defaultBadge;
+          html += '</a>';
+        }
+        $grid.html(html);
+      }
+
+      function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(text));
+        return div.innerHTML;
+      }
+
+      MultiTune.get('/identities?limit=100', function(err, data) {
+        if (err) {
+          MultiTune.showError($grid, '加载身份失败：' + err);
+          return;
+        }
+        renderIdentities(data && data.items ? data.items : []);
+      });
+    })();
+  </script>
+</body>
+</html>
