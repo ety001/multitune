@@ -72,6 +72,25 @@ type StorageSource struct {
 	Available bool   `json:"available"`
 }
 
+// DeviceLog 设备信息日志
+type DeviceLog struct {
+	ID             int64  `json:"id"`
+	UserAgent      string `json:"user_agent"`
+	ChromeVersion  int    `json:"chrome_version"`
+	WebviewVersion int    `json:"webview_version"`
+	IsWebview      bool   `json:"is_webview"`
+	ScreenWidth    int    `json:"screen_width"`
+	ScreenHeight   int    `json:"screen_height"`
+	WindowWidth    int    `json:"window_width"`
+	WindowHeight   int    `json:"window_height"`
+	Language       string `json:"language"`
+	Platform       string `json:"platform"`
+	CookieEnabled  bool   `json:"cookie_enabled"`
+	Online         bool   `json:"online"`
+	Timestamp      string `json:"timestamp"`
+	CreatedAt      int64  `json:"created_at"`
+}
+
 // APIResponse 统一响应
 type APIResponse struct {
 	Code    int         `json:"code"`

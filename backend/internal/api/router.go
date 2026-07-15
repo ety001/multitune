@@ -24,6 +24,10 @@ func (h *Handler) SetupRouter() *gin.Engine {
 	{
 		api.GET("/healthz", h.HealthCheck)
 
+		// 设备信息日志 API
+		api.POST("/device-info", h.CreateDeviceLog)
+		api.GET("/device-logs", h.ListDeviceLogs)
+
 		// 身份 API
 		api.GET("/identities", h.ListIdentities)
 		api.POST("/identities", h.CreateIdentity)
