@@ -20,13 +20,10 @@
       overflow: hidden;
     }
     .container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      display: block;
       width: 100%;
-      height: 100%;
-      padding: 24px;
+      min-height: 100%;
+      padding: 15% 24px 24px;
       text-align: center;
     }
     .logo {
@@ -71,10 +68,12 @@
       to { transform: rotate(360deg); }
     }
     .manual-links {
-      display: flex;
-      gap: 16px;
+      display: block;
+      text-align: center;
     }
     .manual-links a {
+      display: inline-block;
+      margin: 0 8px;
       color: #94a3b8;
       text-decoration: none;
       font-size: 14px;
