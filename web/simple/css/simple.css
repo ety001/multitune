@@ -1,4 +1,4 @@
-/* 简化版全局样式 */
+/* 简化版全局样式（ES5/老浏览器友好，不使用 Flexbox/Grid） */
 * {
   margin: 0;
   padding: 0;
@@ -7,15 +7,14 @@
 
 html, body {
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: #0f172a;
   color: #e2e8f0;
 }
 
 .simple-body {
-  display: flex;
-  flex-direction: column;
+  display: block;
   min-height: 100%;
 }
 
@@ -38,9 +37,8 @@ html, body {
 }
 
 .simple-content {
-  flex: 1;
+  display: block;
   padding: 20px;
-  overflow-y: auto;
 }
 
 .simple-footer {
@@ -98,21 +96,23 @@ html, body {
   background: rgba(239, 68, 68, 0.1);
 }
 
-/* 身份卡片网格 */
+/* 身份卡片网格（inline-block 布局，兼容老浏览器） */
 .identity-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  display: block;
+  width: 100%;
   max-width: 600px;
   margin: 0 auto;
+  text-align: center;
+  font-size: 0; /* 消除 inline-block 间隙 */
 }
 
 .identity-card {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-block;
+  vertical-align: top;
+  width: 45%;
   min-height: 120px;
+  margin: 0 2% 16px;
   padding: 20px;
   border-radius: 16px;
   text-decoration: none;
@@ -120,12 +120,14 @@ html, body {
   font-size: 20px;
   font-weight: bold;
   text-align: center;
+  line-height: 120px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  transition: transform 0.15s;
+  transition: opacity 0.15s;
+  /* 用 table-cell 模拟垂直居中 */
 }
 
 .identity-card:active {
-  transform: scale(0.96);
+  opacity: 0.8;
 }
 
 .identity-badge {
@@ -137,10 +139,12 @@ html, body {
   font-weight: normal;
   background: rgba(255, 255, 255, 0.25);
   border-radius: 10px;
+  line-height: normal;
 }
 
 /* 列表页通用 */
 .list-container {
+  display: block;
   max-width: 700px;
   margin: 0 auto;
 }
@@ -153,11 +157,11 @@ html, body {
   border-radius: 12px;
   text-decoration: none;
   color: #e2e8f0;
-  transition: background 0.15s;
+  transition: opacity 0.15s;
 }
 
 .list-item:active {
-  background: rgba(148, 163, 184, 0.15);
+  opacity: 0.8;
 }
 
 .list-item-title {
@@ -173,6 +177,7 @@ html, body {
 
 /* 播放器页 */
 .player-info {
+  display: block;
   text-align: center;
   padding: 30px 20px;
 }
@@ -183,9 +188,8 @@ html, body {
   margin: 0 auto 24px;
   border-radius: 20px;
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  text-align: center;
+  line-height: 180px;
   font-size: 72px;
   color: #fff;
   box-shadow: 0 8px 32px rgba(99, 102, 241, 0.25);
@@ -203,25 +207,26 @@ html, body {
 }
 
 .player-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
+  display: block;
+  text-align: center;
   padding: 20px;
+  font-size: 0; /* 消除 inline-block 间隙 */
 }
 
 .player-control-btn {
+  display: inline-block;
+  vertical-align: middle;
   width: 64px;
   height: 64px;
+  margin: 0 12px;
   border-radius: 50%;
   border: none;
   background: #6366f1;
   color: #fff;
   font-size: 24px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  text-align: center;
+  line-height: 64px;
 }
 
 .player-control-btn:active {
@@ -232,15 +237,20 @@ html, body {
   width: 84px;
   height: 84px;
   font-size: 32px;
+  line-height: 84px;
+}
+
+/* footer 多按钮居中 */
+.simple-footer .simple-btn {
+  margin: 0 6px;
 }
 
 /* 响应式：车机横屏优先 */
 @media (min-width: 600px) {
-  .identity-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
   .identity-card {
+    width: 30%;
     min-height: 140px;
     font-size: 22px;
+    line-height: 140px;
   }
 }

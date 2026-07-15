@@ -50,11 +50,14 @@
   MultiTune.formatTime = function(ts) {
     if (!ts) return '-';
     var d = new Date(ts * 1000);
+    function pad(n) {
+      return n < 10 ? '0' + n : '' + n;
+    }
     return d.getFullYear() + '-' +
-      String(d.getMonth() + 1).padStart(2, '0') + '-' +
-      String(d.getDate()).padStart(2, '0') + ' ' +
-      String(d.getHours()).padStart(2, '0') + ':' +
-      String(d.getMinutes()).padStart(2, '0');
+      pad(d.getMonth() + 1) + '-' +
+      pad(d.getDate()) + ' ' +
+      pad(d.getHours()) + ':' +
+      pad(d.getMinutes());
   };
 
   // 从 URL 取查询参数
