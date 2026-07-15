@@ -14,7 +14,7 @@
 - **多存储源支持**：可同时访问懒猫主目录、USB 存储、SMB 共享等挂载目录。
 - **双前端版本**：
   - 现代版：Vue 3，面向新版浏览器。
-  - 简化版：纯 ES5 JS + 原生 DOM，兼容 Chrome/WebView ≤ 74（如比亚迪车机）。
+  - 简化版：jQuery + ES5，兼容 Chrome/WebView ≤ 74（如比亚迪车机）。
 - **极简播放器**：播放/暂停、上下曲、进度条、播放列表、顺序/随机/单曲循环。
 - **播放记忆**：记住每个身份最后播放的歌单、歌曲与进度。
 
@@ -22,7 +22,7 @@
 
 - **后端**：Go 1.23+、Gin、SQLite（modernc.org/sqlite）
 - **现代前端**：Vue 3、Vite、Pinia
-- **简化前端**：纯 HTML + ES5 JS + 原生 DOM
+- **简化前端**：jQuery + HTML + ES5
 - **部署**：Docker、懒猫微服 LPK
 
 ## 快速开始
@@ -30,18 +30,23 @@
 ```bash
 cd ~/workspace/multitune
 
-# 后端
+# 后端（指定静态文件目录为 web/）
 cd backend
 go mod download
-go run ./cmd/server
+STATIC_PATH=../web go run ./cmd/server
 
-# 现代前端
+# 现代前端（开发模式）
 cd ../frontend
 pnpm install
 pnpm dev
 
-# 简化前端为纯静态页面，由后端或任意静态服务器托管
+# 简化前端为纯静态页面，已放在 web/simple/，由后端统一托管
 ```
+
+入口页 `web/index.html` 会自动检测浏览器版本：
+- Chrome/WebView ≤ 74 跳转至 `/simple/`
+- 其他现代浏览器跳转至 `/modern/`
+- 可通过 `?v=simple` 或 `?v=modern` 强制指定版本
 
 ## ⚠️ 重要提示
 
@@ -58,8 +63,11 @@ pnpm dev
 ```
 multitune/
 ├── backend/            # Go + Gin + SQLite 后端
-├── frontend/           # Vue 3 现代版前端
-├── simple/             # ES5 简化版前端
+├── frontend/           # Vue 3 现代版前端源码（构建后输出到 web/modern/）
+├── web/                # 静态文件目录，由后端统一托管
+│   ├── index.html      # 入口检测页
+│   ├── simple/         # 简化版前端（jQuery + ES5）
+│   └── modern/         # 现代版前端构建产物
 ├── docs/               # 项目文档
 │   ├── car-music-multi-identity-prd.md
 │   └── multitune-api-db-design.md
