@@ -79,6 +79,10 @@ func (h *Handler) SetupRouter() *gin.Engine {
 		if _, err := os.Stat(indexPath); err == nil {
 			r.GET("/", serveIndex(indexPath))
 		}
+		logoPath := filepath.Join(staticPath, "logo.png")
+		if _, err := os.Stat(logoPath); err == nil {
+			r.StaticFile("/logo.png", logoPath)
+		}
 	} else {
 		slog.Warn("静态文件目录不存在，仅提供 API 服务", "path", staticPath)
 	}

@@ -13,53 +13,86 @@
   </div>
 
   <div class="simple-content">
-    <div class="player-info">
-      <div class="player-cover">♪</div>
-      <div class="player-title" id="songTitle">请选择歌曲</div>
-      <div class="player-artist" id="songArtist">-</div>
-    </div>
+    <div id="playerArea">
+      <div class="player-info">
+        <div class="player-cover" id="playerCover">♪</div>
+        <div class="player-title" id="songTitle">加载中...</div>
+        <div class="player-artist" id="songArtist">-</div>
+      </div>
 
-    <div class="player-controls">
-      <button class="player-control-btn" id="btnPrev" title="上一曲">⏮</button>
-      <button class="player-control-btn large" id="btnPlay" title="播放/暂停">▶</button>
-      <button class="player-control-btn" id="btnNext" title="下一曲">⏭</button>
-    </div>
+      <div class="player-progress-wrap">
+        <input type="range" class="player-progress" id="progressBar" value="0" min="0" max="100" step="0.1">
+        <div class="player-time">
+          <span id="currentTime">0:00</span>
+          <span id="totalTime">0:00</span>
+        </div>
+      </div>
 
-    <div style="text-align:center; padding: 10px; color: #94a3b8; font-size: 13px;">
-      简化版播放器骨架，完整播放控制将在后续迭代实现
+      <div class="player-controls">
+        <button class="player-control-btn" id="btnPrev" title="上一曲">⏮</button>
+        <button class="player-control-btn large" id="btnPlay" title="播放/暂停">▶</button>
+        <button class="player-control-btn" id="btnNext" title="下一曲">⏭</button>
+      </div>
+
+      <div class="player-extra">
+        <button class="player-mode-btn" id="btnMode" title="切换播放模式">顺序播放</button>
+        <div class="player-volume">
+          <span>音量</span>
+          <input type="range" id="volumeBar" min="0" max="100" value="100">
+        </div>
+      </div>
+
+      <div class="player-list-toggle">
+        <button class="simple-btn simple-btn-secondary" id="btnToggleList">展开播放列表</button>
+      </div>
+
+      <div class="player-list" id="songList" style="display: none;">
+        <div class="loading">加载歌曲列表...</div>
+      </div>
     </div>
   </div>
 
   <div class="simple-footer">
     <a href="./index.html" class="simple-btn simple-btn-secondary">切换身份</a>
-    <a href="#" onclick="history.back(); return false;" class="simple-btn simple-btn-secondary" style="margin-left: 12px;">返回歌单</a>
+    <a href="./playlist.html?identity_id=&lt;!-- set by js -->" id="backToPlaylist" class="simple-btn simple-btn-secondary" style="margin-left: 12px;">返回歌单</a>
   </div>
+
+  <!-- 音频元素 -->
+  <audio id="audioPlayer" preload="metadata"></audio>
 
   <script src="./js/jquery-3.7.1.min.js"></script>
   <script src="./js/app.js"></script>
+  <script src="./js/player.js"></script>
   <script>
     (function() {
       var identityId = MultiTune.getQuery('identity_id');
       var playlistId = MultiTune.getQuery('playlist_id');
 
-      // 占位：加载歌单名称
-      if (playlistId) {
-        MultiTune.get('/playlists/' + encodeURIComponent(playlistId), function(err, data) {
-          if (!err && data) {
-            $('#playlistName').text(data.name || '未命名歌单');
-          }
-        });
+      if (!identityId || !playlistId) {
+        $('#playerArea').html('<div class="error">缺少身份或歌单参数</div>');
+        return;
       }
 
-      // 占位按钮事件
-      $('#btnPlay').on('click', function() {
-        alert('播放控制即将上线');
-      });
-      $('#btnPrev').on('click', function() {
-        alert('上一曲即将上线');
-      });
-      $('#btnNext').on('click', function() {
-        alert('下一曲即将上线');
+      $('#backToPlaylist').attr('href', './playlist.html?identity_id=' + encodeURIComponent(identityId));
+
+      window.MultiTunePlayer.init({
+        identityId: identityId,
+        playlistId: playlistId,
+        playlistNameEl: '#playlistName',
+        titleEl: '#songTitle',
+        artistEl: '#songArtist',
+        coverEl: '#playerCover',
+        audioEl: '#audioPlayer',
+        playBtn: '#btnPlay',
+        prevBtn: '#btnPrev',
+        nextBtn: '#btnNext',
+        modeBtn: '#btnMode',
+        progressBar: '#progressBar',
+        currentTimeEl: '#currentTime',
+        totalTimeEl: '#totalTime',
+        volumeBar: '#volumeBar',
+        songListEl: '#songList',
+        toggleListBtn: '#btnToggleList'
       });
     })();
   </script>
