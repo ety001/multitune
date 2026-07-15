@@ -202,10 +202,10 @@
 
       var deviceInfo = collectDeviceInfo();
       sendDeviceInfo(deviceInfo, function() {
-        redirect(targetUrl, 500);
+        // 上报成功后不立即跳转，留给用户手动选择的时间
       });
 
-      // 无论上报是否成功，兜底跳转
+      // 无论上报是否成功，5 秒后兜底跳转
       redirect(targetUrl, 5000);
     })();
   </script>
