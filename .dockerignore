@@ -1,0 +1,10 @@
+.git
+.gitignore
+frontend/node_modules
+frontend/dist
+backend/data
+*.db
+*.log
+data/
+media/
+docker/.gitkeep

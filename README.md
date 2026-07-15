@@ -27,6 +27,31 @@
 
 ## 快速开始
 
+### Docker 运行（推荐）
+
+```bash
+cd ~/workspace/multitune
+
+# 创建本地数据与媒体目录
+mkdir -p data media
+
+# 构建并启动（首次构建会编译前端与后端）
+docker compose up -d --build
+
+# 访问
+open http://localhost:8080
+```
+
+音乐文件请按实际路径挂载到 `./media/` 下，例如：
+
+```yaml
+# docker-compose.yml 中 volumes 示例
+- /home/user/music:/app/media/home/music:ro
+- /mnt/usb:/app/media/usb:ro
+```
+
+### 本地开发运行
+
 ```bash
 cd ~/workspace/multitune
 
@@ -74,6 +99,8 @@ multitune/
 │   ├── car-music-multi-identity-prd.md
 │   └── multitune-api-db-design.md
 ├── docker/             # Dockerfile 与构建脚本
+├── Dockerfile          # 多阶段构建镜像
+├── docker-compose.yml  # 本地运行示例
 └── README.md
 ```
 
