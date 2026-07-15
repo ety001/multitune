@@ -282,6 +282,16 @@ if count != len(ids) {
 - handler 测试用 `httptest.NewRecorder`，不启动真实 HTTP 服务。
 - 运行 `go test -race -count=1 ./...` 确保无竞态。
 
+## PR Body 格式规范
+
+历史问题：曾多次因使用 `gh pr create --body "..."` 内联字符串导致 `\n` 被转义为字面量，PR Body 出现 `\n\n` 而格式错乱。
+
+正确做法：
+
+- 优先使用 `gh pr create --body-file <file>` 或 `gh pr edit <num> --body-file <file>`，将正文写入独立的 `.md` 文件。
+- 如需内联，必须使用 `$'...'` 或 here-document，确保换行符为真实换行而非 `\n` 字面量。
+- 创建/编辑后，用 `gh pr view <num>` 检查最终渲染效果。
+
 ## PR 提交清单
 
 提交前自查：
@@ -296,3 +306,4 @@ if count != len(ids) {
 - [ ] 业务错误用 sentinel error + `errors.Is`
 - [ ] 无 N+1 查询
 - [ ] 测试覆盖成功 + 错误路径
+- [ ] PR Body 使用 `--body-file` 写入，无 `\n` 字面量换行，并已用 `gh pr view` 检查
