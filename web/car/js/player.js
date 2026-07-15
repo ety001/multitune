@@ -19,6 +19,7 @@
       this.mode = 'order';
       this.bindVolume();
       this.bindEvents();
+      this.bindKeyboard();
       this.loadData();
     },
 
@@ -169,6 +170,36 @@
 
       $(audio).on('pause', function() {
         self.updatePlayBtn(false);
+      });
+    },
+
+    bindKeyboard: function() {
+      var self = this;
+      $(document).on('keydown', function(e) {
+        var keyCode = e.which || e.keyCode;
+        var targetTag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+
+        // 输入框内不拦截，避免影响输入
+        if (targetTag === 'input' || targetTag === 'textarea') {
+          return;
+        }
+
+        if (keyCode === 32) {
+          // 空格：播放/暂停
+          e.preventDefault();
+          self.hasUserInteracted = true;
+          self.togglePlay();
+        } else if (keyCode === 37) {
+          // 左方向键：上一曲
+          e.preventDefault();
+          self.hasUserInteracted = true;
+          self.playPrev();
+        } else if (keyCode === 39) {
+          // 右方向键：下一曲
+          e.preventDefault();
+          self.hasUserInteracted = true;
+          self.playNext();
+        }
       });
     },
 
