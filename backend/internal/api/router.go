@@ -66,15 +66,15 @@ func (h *Handler) SetupRouter() *gin.Engine {
 	// 静态文件服务（避免根路径通配与 /api 冲突，分别挂载子目录）
 	staticPath := h.cfg.StaticPath
 	if info, err := os.Stat(staticPath); err == nil && info.IsDir() {
-		simplePath := filepath.Join(staticPath, "simple")
-		modernPath := filepath.Join(staticPath, "modern")
+		carPath := filepath.Join(staticPath, "car")
+		fullPath := filepath.Join(staticPath, "full")
 		indexPath := filepath.Join(staticPath, "index.html")
 
-		if _, err := os.Stat(simplePath); err == nil {
-			r.Static("/simple", simplePath)
+		if _, err := os.Stat(carPath); err == nil {
+			r.Static("/car", carPath)
 		}
-		if _, err := os.Stat(modernPath); err == nil {
-			r.Static("/modern", modernPath)
+		if _, err := os.Stat(fullPath); err == nil {
+			r.Static("/full", fullPath)
 		}
 		if _, err := os.Stat(indexPath); err == nil {
 			r.GET("/", serveIndex(indexPath))
@@ -82,6 +82,10 @@ func (h *Handler) SetupRouter() *gin.Engine {
 		logoPath := filepath.Join(staticPath, "logo.png")
 		if _, err := os.Stat(logoPath); err == nil {
 			r.StaticFile("/logo.png", logoPath)
+		}
+		faviconPath := filepath.Join(staticPath, "favicon.png")
+		if _, err := os.Stat(faviconPath); err == nil {
+			r.StaticFile("/favicon.png", faviconPath)
 		}
 	} else {
 		slog.Warn("静态文件目录不存在，仅提供 API 服务", "path", staticPath)
