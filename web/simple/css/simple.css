@@ -240,6 +240,159 @@ html, body {
   line-height: 84px;
 }
 
+/* 进度条 */
+.player-progress-wrap {
+  padding: 10px 20px 20px;
+}
+
+.player-progress {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.2);
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.player-progress::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  cursor: pointer;
+}
+
+.player-progress::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  cursor: pointer;
+  border: none;
+}
+
+.player-time {
+  overflow: hidden;
+  padding-top: 8px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.player-time span:first-child {
+  float: left;
+}
+
+.player-time span:last-child {
+  float: right;
+}
+
+/* 附加控制：模式 + 音量 */
+.player-extra {
+  padding: 16px 20px;
+  text-align: center;
+  font-size: 0;
+}
+
+.player-mode-btn {
+  display: inline-block;
+  vertical-align: middle;
+  padding: 10px 18px;
+  margin-right: 16px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.1);
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.player-mode-btn:active {
+  background: rgba(148, 163, 184, 0.2);
+}
+
+.player-volume {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.player-volume span {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+.player-volume input[type="range"] {
+  display: inline-block;
+  vertical-align: middle;
+  width: 100px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.2);
+  -webkit-appearance: none;
+}
+
+.player-volume input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  cursor: pointer;
+}
+
+.player-volume input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  cursor: pointer;
+  border: none;
+}
+
+/* 播放列表切换 */
+.player-list-toggle {
+  padding: 12px 20px;
+  text-align: center;
+}
+
+.player-list {
+  max-width: 700px;
+  margin: 0 auto 20px;
+  padding: 0 20px;
+}
+
+.song-list-item {
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 12px;
+  cursor: pointer;
+  border-left: 4px solid transparent;
+}
+
+.song-list-item.active {
+  background: rgba(99, 102, 241, 0.15);
+  border-left-color: #6366f1;
+}
+
+.song-list-item:active {
+  background: rgba(148, 163, 184, 0.15);
+}
+
+.song-list-title {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.song-list-artist {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
 /* footer 多按钮居中 */
 .simple-footer .simple-btn {
   margin: 0 6px;
