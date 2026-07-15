@@ -12,6 +12,7 @@
     saveTimer: null,
     isSeeking: false,
     hasUserInteracted: false,
+    consecutiveErrors: 0,
 
     init: function(options) {
       this.options = options;
@@ -87,6 +88,7 @@
 
       this.updateModeBtn();
       this.renderSongList();
+      this.consecutiveErrors = 0;
       this.playSong(startIndex, false, startPosition);
 
       // 自动保存播放状态（每 5 秒）
@@ -149,6 +151,7 @@
       });
 
       $(audio).on('loadedmetadata', function() {
+        self.consecutiveErrors = 0;
         self.updateProgress();
       });
 
@@ -249,12 +252,11 @@
 
       var nextIndex = this.getNextIndex();
       if (nextIndex === -1) {
-        // 顺序播放到末尾，停止
+        // 顺序播放到末尾，回到第一首并暂停
         var audio = $(this.options.audioEl)[0];
         audio.pause();
-        audio.currentTime = 0;
-        this.updateProgress();
-        this.updatePlayBtn(false);
+        this.currentIndex = 0;
+        this.playSong(0, false, 0);
         return;
       }
 
@@ -404,6 +406,18 @@
 
     onAudioError: function() {
       var self = this;
+      this.consecutiveErrors += 1;
+
+      if (this.consecutiveErrors >= 5) {
+        $(this.options.titleEl).text('连续多首歌曲加载失败');
+        $(this.options.artistEl).text('请检查存储设备是否正常连接');
+        var audio = $(this.options.audioEl)[0];
+        audio.pause();
+        this.updatePlayBtn(false);
+        this.consecutiveErrors = 0;
+        return;
+      }
+
       $(this.options.titleEl).text('歌曲加载失败');
       $(this.options.artistEl).text('3 秒后自动切换下一首');
       setTimeout(function() {
