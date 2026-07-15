@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>设备日志 - 多音盒</title>
+  <link rel="stylesheet" href="./css/simple.css">
+  <style>
+    .log-table-wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      overflow-x: auto;
+    }
+    .log-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .log-table th,
+    .log-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+      white-space: nowrap;
+    }
+    .log-table th {
+      color: #94a3b8;
+      font-weight: normal;
+    }
+    .log-table td {
+      color: #cbd5e1;
+    }
+    .log-time {
+      color: #94a3b8;
+      font-size: 12px;
+    }
+    .log-ua {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .pager {
+      text-align: center;
+      padding: 20px;
+    }
+    .pager .simple-btn {
+      margin: 0 6px;
+      padding: 10px 18px;
+      font-size: 14px;
+    }
+    .pager-info {
+      display: inline-block;
+      padding: 10px 12px;
+      color: #94a3b8;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body class="simple-body">
+  <div class="simple-header">
+    <div class="simple-title">设备日志</div>
+    <div class="simple-subtitle">用于排查车机浏览器兼容问题</div>
+  </div>
+
+  <div class="simple-content">
+    <div class="log-table-wrap" id="logTableWrap">
+      <div class="loading">正在加载日志...</div>
+    </div>
+
+    <div class="pager" id="pager" style="display: none;">
+      <button class="simple-btn simple-btn-secondary" id="btnPrev">上一页</button>
+      <span class="pager-info" id="pagerInfo">-</span>
+      <button class="simple-btn simple-btn-secondary" id="btnNext">下一页</button>
+    </div>
+  </div>
+
+  <div class="simple-footer">
+    <a href="./index.html" class="simple-btn simple-btn-secondary">返回身份选择</a>
+    <a href="/" class="simple-btn simple-btn-secondary" style="margin-left: 12px;">返回入口</a>
+  </div>
+
+  <script src="./js/jquery-3.7.1.min.js"></script>
+  <script src="./js/app.js"></script>
+  <script>
+    (function() {
+      var limit = 20;
+      var offset = 0;
+      var total = 0;
+
+      var $wrap = $('#logTableWrap');
+      var $pager = $('#pager');
+      var $pagerInfo = $('#pagerInfo');
+      var $btnPrev = $('#btnPrev');
+      var $btnNext = $('#btnNext');
+
+      function formatTime(ts) {
+        if (!ts) return '-';
+        var d = new Date(ts * 1000);
+        function pad(n) { return n < 10 ? '0' + n : '' + n; }
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+          ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+      }
+
+      function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(text || ''));
+        return div.innerHTML;
+      }
+
+      function renderLogs(items, newTotal) {
+        total = newTotal || 0;
+        if (!items || items.length === 0) {
+          MultiTune.showEmpty($wrap, '暂无设备日志');
+          $pager.hide();
+          return;
+        }
+
+        var html = '<table class="log-table"><thead><tr>' +
+          '<th>时间</th>' +
+          '<th>平台</th>' +
+          '<th>Chrome</th>' +
+          '<th>WebView</th>' +
+          '<th>屏幕</th>' +
+          '<th>窗口</th>' +
+          '<th>语言</th>' +
+          '<th>UA</th>' +
+          '</tr></thead><tbody>';
+
+        for (var i = 0; i < items.length; i++) {
+          var log = items[i];
+          var screenText = (log.screen_width || 0) + 'x' + (log.screen_height || 0);
+          var windowText = (log.window_width || 0) + 'x' + (log.window_height || 0);
+          var chromeText = log.chrome_version ? log.chrome_version : '-';
+          var webviewText = log.webview_version ? log.webview_version : '-';
+          var onlineText = log.online ? '在线' : '离线';
+          html += '<tr>' +
+            '<td class="log-time">' + escapeHtml(formatTime(log.created_at)) + '</td>' +
+            '<td>' + escapeHtml(log.platform || '-') + '</td>' +
+            '<td>' + escapeHtml(chromeText) + '</td>' +
+            '<td>' + escapeHtml(webviewText) + '</td>' +
+            '<td>' + escapeHtml(screenText) + '</td>' +
+            '<td>' + escapeHtml(windowText) + '</td>' +
+            '<td>' + escapeHtml(log.language || '-') + '</td>' +
+            '<td><span class="log-ua" title="' + escapeHtml(log.user_agent || '') + '">' + escapeHtml(log.user_agent || '') + '</span> ' + escapeHtml(onlineText) + '</td>' +
+            '</tr>';
+        }
+
+        html += '</tbody></table>';
+        $wrap.html(html);
+        $pager.show();
+
+        var start = total === 0 ? 0 : offset + 1;
+        var end = Math.min(offset + items.length, total);
+        $pagerInfo.text(start + '-' + end + ' / ' + total);
+
+        $btnPrev.prop('disabled', offset <= 0);
+        $btnNext.prop('disabled', offset + limit >= total);
+      }
+
+      function loadLogs() {
+        $wrap.html('<div class="loading">正在加载日志...</div>');
+        $pager.hide();
+        MultiTune.get('/device-logs?limit=' + limit + '&offset=' + offset, function(err, data) {
+          if (err) {
+            MultiTune.showError($wrap, '加载日志失败：' + err);
+            return;
+          }
+          renderLogs(data && data.items ? data.items : [], data && data.total ? data.total : 0);
+        });
+      }
+
+      $btnPrev.on('click', function() {
+        if (offset > 0) {
+          offset -= limit;
+          if (offset < 0) offset = 0;
+          loadLogs();
+        }
+      });
+
+      $btnNext.on('click', function() {
+        if (offset + limit < total) {
+          offset += limit;
+          loadLogs();
+        }
+      });
+
+      loadLogs();
+    })();
+  </script>
+</body>
+</html>
