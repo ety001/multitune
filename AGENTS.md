@@ -222,7 +222,7 @@ if count != len(ids) {
 
 ### F1. 只允许 ES5 语法
 
-简化版 `web/simple/` 下的 JS 必须严格使用 ES5，禁止以下特性：
+简化版 `web/car/` 下的 JS 必须严格使用 ES5，禁止以下特性：
 
 - `let` / `const` → 用 `var`
 - 箭头函数 `() => {}` → 用 `function`
@@ -269,8 +269,8 @@ if count != len(ids) {
 
 ### F6. 提交前简化版自查
 
-- [ ] `web/simple/` 下无 ES6+ 语法
-- [ ] `web/simple/` 下无 Flexbox/Grid/CSS 变量
+- [ ] `web/car/` 下无 ES6+ 语法
+- [ ] `web/car/` 下无 Flexbox/Grid/CSS 变量
 - [ ] 页面在 Chrome 74 模拟器或真机上能正常打开
 - [ ] 不依赖未本地化的外部资源（如 CDN 需有本地 fallback）
 
