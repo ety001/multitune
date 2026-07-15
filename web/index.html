@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>多音盒 MultiTune</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
   <style>
     * {
       margin: 0;
@@ -98,8 +99,8 @@
     <div class="status" id="status">正在检测浏览器...</div>
     <div class="spinner" id="spinner"></div>
     <div class="manual-links">
-      <a href="/simple/" id="simpleLink">进入简化版</a>
-      <a href="/modern/" id="modernLink">进入现代版</a>
+      <a href="/car/" id="carLink">进入车机版</a>
+      <a href="/full/" id="fullLink">进入完整版</a>
     </div>
   </div>
 
@@ -144,21 +145,21 @@
         };
       }
 
-      function shouldUseSimple(browser) {
-        // URL 参数强制指定版本
+      function shouldUseCar(browser) {
+        // URL 参数强制指定版本（兼容旧 v=simple/v=modern）
         var search = window.location.search || '';
-        if (search.indexOf('v=simple') !== -1) return true;
-        if (search.indexOf('v=modern') !== -1) return false;
+        if (search.indexOf('v=car') !== -1 || search.indexOf('v=simple') !== -1) return true;
+        if (search.indexOf('v=full') !== -1 || search.indexOf('v=modern') !== -1) return false;
 
-        // WebView 版本 <= 74 使用简化版
+        // WebView 版本 <= 74 使用车机版
         if (browser.isWebview && browser.webviewVersion !== null && browser.webviewVersion <= 74) {
           return true;
         }
-        // Chrome 版本 <= 74 使用简化版
+        // Chrome 版本 <= 74 使用车机版
         if (browser.chromeVersion !== null && browser.chromeVersion <= 74) {
           return true;
         }
-        // 检测不到版本时保守使用简化版
+        // 检测不到版本时保守使用车机版
         if (browser.chromeVersion === null && browser.webviewVersion === null) {
           return true;
         }
@@ -192,12 +193,12 @@
 
       var statusEl = document.getElementById('status');
       var browser = detectBrowser();
-      var useSimple = shouldUseSimple(browser);
-      var targetUrl = useSimple ? '/simple/' : '/modern/';
+      var useCar = shouldUseCar(browser);
+      var targetUrl = useCar ? '/car/' : '/full/';
 
-      statusEl.textContent = useSimple
-        ? '检测到老版本浏览器，即将进入简化版...'
-        : '正在进入现代版...';
+      statusEl.textContent = useCar
+        ? '检测到老版本浏览器，即将进入车机版...'
+        : '正在进入完整版...';
 
       var deviceInfo = collectDeviceInfo();
       sendDeviceInfo(deviceInfo, function() {

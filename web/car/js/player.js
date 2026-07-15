@@ -64,7 +64,7 @@
 
       if (this.songs.length === 0) {
         $(this.options.titleEl).text('暂无歌曲');
-        $(this.options.artistEl).text('请先在现代版或 PC 端添加歌曲');
+        $(this.options.artistEl).text('请先在完整版或 PC 端添加歌曲');
         return;
       }
 
