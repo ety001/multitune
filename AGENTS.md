@@ -216,6 +216,64 @@ if count != len(ids) {
 
 `UPDATE` 语句只修改请求中传入的字段。不要顺带更新 `created_at` 等非目标字段。
 
+## 简化版前端开发规范
+
+简化版面向 Chrome/WebView ≤ 74 的老车机浏览器（如比亚迪车机），必须严格遵守以下兼容性原则。PR 审计会检查简化版代码是否符合。
+
+### F1. 只允许 ES5 语法
+
+简化版 `web/simple/` 下的 JS 必须严格使用 ES5，禁止以下特性：
+
+- `let` / `const` → 用 `var`
+- 箭头函数 `() => {}` → 用 `function`
+- 模板字符串 `` `hello ${name}` `` → 用字符串拼接
+- `Promise` / `async` / `await` → 用回调函数
+- `Array.prototype.find` / `findIndex` / `includes` 等 ES6+ 方法 → 用 `for` 循环或 jQuery
+- `String.prototype.padStart` / `padEnd` 等 ES2017 方法 → 手写辅助函数
+- `Object.assign` / 展开运算符 → 用逐个字段复制
+- `class` → 用构造函数 + `prototype`
+
+允许使用：
+
+- `JSON.stringify` / `JSON.parse`
+- `XMLHttpRequest`（或 jQuery 封装的 `$.ajax`）
+- 普通的 `Array.prototype.forEach` / `map` / `filter`（Chrome 74 支持，但为安全优先用手写循环）
+
+### F2. 禁止 CSS Flexbox / Grid / CSS 变量
+
+老车机浏览器对 Flexbox/Grid 支持不完整，必须用传统布局：
+
+- 禁止：`display: flex`、`display: grid`、`CSS Grid` 属性
+- 推荐：`display: block`、`display: inline-block`、`float`、百分比宽度、`position`
+- 禁止：CSS 自定义属性（变量）`--var`
+- 推荐：直接写具体颜色/尺寸值
+
+### F3. 使用 jQuery 3.x 但保持 ES5
+
+简化版使用本地 `jquery-3.7.1.min.js`，DOM 操作和 AJAX 用 jQuery 简化，但回调与辅助函数仍须符合 F1。
+
+### F4. 避免依赖现代浏览器 API
+
+- 音频播放使用 HTML5 `<audio>` 元素，不依赖 `AudioContext`（需要用户手势才能自动播放）
+- 文件浏览器使用原生 `<input type="file">` 或后端 API，不依赖 `File System Access API`
+- 存储使用后端 API + URL 查询参数，不依赖 `localStorage` / `IndexedDB`（如非必要）
+
+### F5. 优先触控与大按钮
+
+车机以触控为主，简化版交互原则：
+
+- 主要按钮高度 ≥ 64px，点击区域足够大
+- 每屏主要操作不超过 3 个
+- 身份卡片尺寸 ≥ 120×120px
+- 避免复杂手势，优先单击
+
+### F6. 提交前简化版自查
+
+- [ ] `web/simple/` 下无 ES6+ 语法
+- [ ] `web/simple/` 下无 Flexbox/Grid/CSS 变量
+- [ ] 页面在 Chrome 74 模拟器或真机上能正常打开
+- [ ] 不依赖未本地化的外部资源（如 CDN 需有本地 fallback）
+
 ## 测试规范
 
 - 每个 PR 必须包含对应测试（repo 层 + handler 层）。
