@@ -149,55 +149,19 @@
         self.openSongList();
       });
 
-      if (this.options.closeListBtn) {
-        $(this.options.closeListBtn).on('click', function() {
-          self.closeSongList();
-        });
-      }
-
-      if (this.options.songListMask) {
-        $(this.options.songListMask).on('click', function() {
-          self.closeSongList();
-        });
-      }
-
       if (this.options.switchIdentityBtn) {
         $(this.options.switchIdentityBtn).on('click', function() {
           self.openIdentityModal();
         });
       }
 
-      if (this.options.backToPlaylistBtn) {
-        $(this.options.backToPlaylistBtn).on('click', function() {
+      if (this.options.switchPlaylistBtn) {
+        $(this.options.switchPlaylistBtn).on('click', function() {
           if (self.options.identityId) {
             self.openPlaylistModal(self.options.identityId);
           } else {
             self.openIdentityModal();
           }
-        });
-      }
-
-      if (this.options.closeIdentityBtn) {
-        $(this.options.closeIdentityBtn).on('click', function() {
-          self.closeIdentityModal();
-        });
-      }
-
-      if (this.options.identityMask) {
-        $(this.options.identityMask).on('click', function() {
-          self.closeIdentityModal();
-        });
-      }
-
-      if (this.options.closePlaylistBtn) {
-        $(this.options.closePlaylistBtn).on('click', function() {
-          self.closePlaylistModal();
-        });
-      }
-
-      if (this.options.playlistMask) {
-        $(this.options.playlistMask).on('click', function() {
-          self.closePlaylistModal();
         });
       }
 
@@ -516,25 +480,25 @@
 
     openSongList: function() {
       if (this.options.songListModal) {
-        $(this.options.songListModal).show();
+        $(this.options.songListModal).modal('show');
       }
     },
 
     closeSongList: function() {
       if (this.options.songListModal) {
-        $(this.options.songListModal).hide();
+        $(this.options.songListModal).modal('hide');
       }
     },
 
     openModal: function(modalSelector) {
       if (modalSelector) {
-        $(modalSelector).show();
+        $(modalSelector).modal('show');
       }
     },
 
     closeModal: function(modalSelector) {
       if (modalSelector) {
-        $(modalSelector).hide();
+        $(modalSelector).modal('hide');
       }
     },
 

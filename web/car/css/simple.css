@@ -1,129 +1,50 @@
-/* 车机版全局样式（ES5/老浏览器友好，不使用 Flexbox/Grid） */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* 车机版自定义样式（基于 Bootstrap 3，覆盖仅用于播放器特定元素） */
 
 html, body {
   width: 100%;
   min-height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: #0f172a;
   color: #e2e8f0;
 }
 
 .simple-body {
-  display: block;
-  min-height: 100%;
+  padding-bottom: 20px;
 }
 
-.simple-header {
-  padding: 24px;
-  text-align: center;
+/* 顶部导航 */
+.player-header {
+  padding: 16px 0;
   background: rgba(15, 23, 42, 0.95);
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
 }
 
-.player-header {
-  overflow: hidden;
-  padding: 16px 12px;
-  text-align: center;
+.header-side .btn {
+  margin-left: 8px;
 }
 
-.header-left {
-  float: left;
-  text-align: left;
-  white-space: nowrap;
+.header-side .btn:first-child {
+  margin-left: 0;
 }
 
-.header-right {
-  float: right;
-  text-align: right;
-  white-space: nowrap;
+.header-title {
+  font-size: 22px;
+  font-weight: bold;
+  line-height: 1.2;
+  margin-bottom: 2px;
 }
 
-.header-center {
-  overflow: hidden;
-  padding: 0 12px;
-}
-
-.header-center .simple-title,
-.header-center .simple-subtitle {
+.header-subtitle {
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.header-link {
-  display: inline-block;
-  padding: 8px 10px;
-  font-size: 14px;
-  color: #cbd5e1;
-  text-decoration: none;
-  background: rgba(148, 163, 184, 0.15);
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  margin-right: 8px;
-  vertical-align: middle;
-}
-
-.header-link:last-child {
-  margin-right: 0;
-}
-
-.header-link:active {
-  opacity: 0.85;
-}
-
-.simple-title {
-  font-size: 24px;
-  font-weight: bold;
-  margin-bottom: 6px;
-}
-
-.simple-subtitle {
-  font-size: 14px;
-  color: #94a3b8;
-}
-
+/* 主内容区 */
 .simple-content {
-  display: block;
   padding: 20px;
-}
-
-.simple-footer {
-  padding: 16px;
-  text-align: center;
-  border-top: 1px solid rgba(148, 163, 184, 0.15);
-}
-
-/* 按钮 */
-.simple-btn {
-  display: inline-block;
-  padding: 14px 28px;
-  font-size: 16px;
-  border-radius: 12px;
-  text-decoration: none;
-  text-align: center;
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.simple-btn-primary {
-  background: #6366f1;
-  color: #fff;
-}
-
-.simple-btn-secondary {
-  background: rgba(148, 163, 184, 0.15);
-  color: #cbd5e1;
-}
-
-.simple-btn:active {
-  opacity: 0.8;
 }
 
 /* 状态提示 */
@@ -148,88 +69,8 @@ html, body {
   background: rgba(239, 68, 68, 0.1);
 }
 
-/* 身份卡片网格（inline-block 布局，兼容老浏览器） */
-.identity-grid {
-  display: block;
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  text-align: center;
-  font-size: 0; /* 消除 inline-block 间隙 */
-}
-
-.identity-card {
-  position: relative;
-  display: inline-block;
-  vertical-align: top;
-  width: 45%;
-  min-height: 120px;
-  margin: 0 2% 16px;
-  padding: 20px;
-  border-radius: 16px;
-  text-decoration: none;
-  color: #fff;
-  font-size: 20px;
-  font-weight: bold;
-  text-align: center;
-  line-height: 120px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  transition: opacity 0.15s;
-  /* 用 table-cell 模拟垂直居中 */
-}
-
-.identity-card:active {
-  opacity: 0.8;
-}
-
-.identity-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 3px 8px;
-  font-size: 11px;
-  font-weight: normal;
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: 10px;
-  line-height: normal;
-}
-
-/* 列表页通用 */
-.list-container {
-  display: block;
-  max-width: 700px;
-  margin: 0 auto;
-}
-
-.list-item {
-  display: block;
-  padding: 18px 20px;
-  margin-bottom: 12px;
-  background: rgba(148, 163, 184, 0.08);
-  border-radius: 12px;
-  text-decoration: none;
-  color: #e2e8f0;
-  transition: opacity 0.15s;
-}
-
-.list-item:active {
-  opacity: 0.8;
-}
-
-.list-item-title {
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 6px;
-}
-
-.list-item-meta {
-  font-size: 13px;
-  color: #94a3b8;
-}
-
-/* 播放器页 */
+/* 播放器信息 */
 .player-info {
-  display: block;
   text-align: center;
   padding: 30px 20px;
 }
@@ -258,11 +99,11 @@ html, body {
   color: #94a3b8;
 }
 
+/* 控制按钮 */
 .player-controls {
-  display: block;
   text-align: center;
   padding: 20px;
-  font-size: 0; /* 消除 inline-block 间隙 */
+  font-size: 0;
 }
 
 .player-control-btn {
@@ -363,6 +204,10 @@ html, body {
   cursor: pointer;
 }
 
+.player-mode-btn i {
+  vertical-align: middle;
+}
+
 .player-mode-btn:active {
   background: rgba(148, 163, 184, 0.2);
 }
@@ -409,132 +254,66 @@ html, body {
   border: none;
 }
 
-/* 播放列表弹层 */
-.player-list-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 100;
-}
-
-.player-list-mask {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-}
-
-.player-list-panel {
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 80%;
-  max-width: 420px;
-  height: 100%;
+/* Bootstrap 模态框深色覆盖 */
+.modal-content {
   background: #0f172a;
-  border-left: 1px solid rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
-.player-list-header {
-  padding: 16px 20px;
+.modal-header {
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
-  overflow: hidden;
-  height: 65px;
 }
 
-.player-list-title {
-  float: left;
-  font-size: 18px;
-  font-weight: bold;
-  line-height: 32px;
-  white-space: nowrap;
+.modal-title {
+  color: #e2e8f0;
 }
 
-.player-list-close {
-  float: right;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(148, 163, 184, 0.15);
-  color: #cbd5e1;
-  font-size: 22px;
-  line-height: 32px;
-  text-align: center;
-  cursor: pointer;
+.modal-backdrop {
+  background: #000;
 }
 
-.player-list-close:active {
-  opacity: 0.85;
+.modal-backdrop.in {
+  opacity: 0.7;
 }
 
-.player-list {
-  position: absolute;
-  top: 65px;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow-y: auto;
-  padding: 16px 16px 20px;
-}
-
+/* 弹层内选择项（身份 / 歌单 / 歌曲） */
+.identity-select-item,
+.playlist-select-item,
 .song-list-item {
   padding: 14px 16px;
   margin-bottom: 10px;
-  background: rgba(148, 163, 184, 0.08);
   border-radius: 12px;
   cursor: pointer;
-  border-left: 4px solid transparent;
-}
-
-.song-list-item.active {
-  background: rgba(99, 102, 241, 0.15);
-  border-left-color: #6366f1;
-}
-
-.song-list-item:active {
-  background: rgba(148, 163, 184, 0.15);
-}
-
-.song-list-title {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 4px;
-}
-
-.song-list-artist {
-  font-size: 13px;
-  color: #94a3b8;
-}
-
-/* 弹层内选择项（身份 / 歌单） */
-.identity-select-item,
-.playlist-select-item {
-  padding: 16px;
-  margin-bottom: 12px;
-  border-radius: 12px;
-  cursor: pointer;
-  color: #fff;
   transition: opacity 0.15s;
 }
 
+.identity-select-item,
+.playlist-select-item {
+  color: #fff;
+}
+
 .identity-select-item:active,
-.playlist-select-item:active {
+.playlist-select-item:active,
+.song-list-item:active {
   opacity: 0.85;
 }
 
-.playlist-select-item {
+.playlist-select-item,
+.song-list-item {
   background: rgba(148, 163, 184, 0.08);
   color: #e2e8f0;
 }
 
+.song-list-item.active {
+  background: rgba(99, 102, 241, 0.15);
+  border-left: 4px solid #6366f1;
+}
+
 .identity-select-name,
-.playlist-select-name {
-  font-size: 18px;
+.playlist-select-name,
+.song-list-title {
+  font-size: 16px;
   font-weight: bold;
   margin-bottom: 4px;
 }
@@ -544,17 +323,19 @@ html, body {
   color: #94a3b8;
 }
 
-/* footer 多按钮居中 */
-.simple-footer .simple-btn {
-  margin: 0 6px;
+.playlist-modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
-/* 响应式：车机横屏优先 */
-@media (min-width: 600px) {
-  .identity-card {
-    width: 30%;
-    min-height: 140px;
-    font-size: 22px;
-    line-height: 140px;
+/* 响应式：小屏按钮字号 */
+@media (max-width: 360px) {
+  .header-side .btn {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+
+  .header-title {
+    font-size: 18px;
   }
 }
