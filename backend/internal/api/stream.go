@@ -32,15 +32,6 @@ func (h *Handler) StreamSong(c *gin.Context) {
 		return
 	}
 
-	if err := fsutil.ValidateMediaPath(h.cfg.MediaRoot, song.Path); err != nil {
-		slog.Error("歌曲路径校验失败", "error", err, "path", song.Path)
-		c.JSON(http.StatusForbidden, model.APIResponse{
-			Code:    ErrCodeSongNotReadable,
-			Message: "歌曲文件不可访问",
-		})
-		return
-	}
-
 	file, err := os.Open(song.Path)
 	if err != nil {
 		slog.Error("打开歌曲文件失败", "error", err, "path", song.Path)

@@ -46,7 +46,6 @@ COPY --from=frontend-builder /app/web /app/static
 
 ENV STATIC_PATH=/app/static \
     DATA_PATH=/app/data \
-    MEDIA_ROOT=/app/media \
     PORT=8080 \
     LOG_LEVEL=info
 

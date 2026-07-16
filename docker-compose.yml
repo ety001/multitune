@@ -10,10 +10,9 @@ services:
       # 应用数据：SQLite 数据库、迁移记录等
       - ./data:/app/data
       # 音乐文件挂载点（只读）
-      # 可按实际存储源增加子目录，例如：
-      # - /path/to/home/music:/app/media/home/music:ro
-      # - /path/to/usb:/app/media/usb:ro
-      - ./media:/app/media:ro
+      # 应用不再锁定 MEDIA_ROOT，可按需挂载任意目录，例如：
+      # - /path/to/music:/music:ro
+      # - /mnt/usb:/usb:ro
     environment:
       - LOG_LEVEL=info
       - PLAYBACK_SAVE_INTERVAL=5

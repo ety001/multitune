@@ -176,7 +176,6 @@ func TestHandler_AddSongsToPlaylist_ExceedLimit(t *testing.T) {
 	cfg := &config.Config{
 		DataPath:                t.TempDir(),
 		DatabaseName:            "test.db",
-		MediaRoot:               t.TempDir(),
 		MaxIdentities:           20,
 		MaxPlaylistsPerIdentity: 50,
 		MaxSongsPerPlaylist:     1,
@@ -310,7 +309,7 @@ func TestHandler_GetPlaylist_Pagination(t *testing.T) {
 // createSongForTest 测试辅助：扫描一首歌曲并返回
 func createSongForTest(t *testing.T, h *Handler, r http.Handler, source, filename string) *model.Song {
 	t.Helper()
-	sourceDir := filepath.Join(h.cfg.MediaRoot, source)
+	sourceDir := filepath.Join(t.TempDir(), source)
 	if err := os.MkdirAll(sourceDir, 0755); err != nil {
 		t.Fatal(err)
 	}

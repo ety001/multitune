@@ -172,12 +172,12 @@ function formatBytes(bytes) {
           <span v-if="!source.available" class="unavailable">(不可用)</span>
         </button>
         <span v-if="!fileStore.loading && fileStore.sources.length === 0" class="no-sources">
-          未检测到存储源，请检查 MEDIA_ROOT 环境变量或挂载目录。
+          未检测到根目录访问权限，请检查容器挂载与运行权限。
         </span>
       </div>
 
       <div v-if="!fileStore.loading && fileStore.sources.length === 0" class="empty card">
-        文件浏览器需要后端配置至少一个可访问的存储源才能浏览文件。
+        文件浏览器需要后端能够访问容器文件系统根目录，请检查挂载与权限。
       </div>
 
       <div v-if="fileStore.sources.length > 0">

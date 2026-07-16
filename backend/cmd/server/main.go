@@ -22,7 +22,6 @@ func main() {
 	slog.Info("多音盒 MultiTune 后端启动",
 		"port", cfg.Port,
 		"data_path", cfg.DataPath,
-		"media_root", cfg.MediaRoot,
 	)
 
 	database, err := db.New(cfg)

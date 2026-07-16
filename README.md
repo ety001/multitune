@@ -32,9 +32,8 @@
 ```bash
 cd ~/workspace/multitune
 
-# 创建本地数据与媒体目录
-# 后端把 MEDIA_ROOT 下的子目录识别为存储源，建议按 home/usb/smb 分类
-mkdir -p data media/home media/usb media/smb
+# 创建本地数据目录
+mkdir -p data
 
 # 构建并启动（首次构建会编译前端与后端）
 docker compose up -d --build
@@ -43,12 +42,12 @@ docker compose up -d --build
 open http://localhost:8080
 ```
 
-音乐文件请按实际路径挂载到 `./media/` 下的子目录，例如：
+音乐文件请按实际路径挂载到容器内任意目录，例如：
 
 ```yaml
 # docker-compose.yml 中 volumes 示例
-- /home/user/music:/app/media/home/music:ro
-- /mnt/usb:/app/media/usb:ro
+- /home/user/music:/music:ro
+- /mnt/usb:/usb:ro
 ```
 
 ### 本地开发运行
@@ -56,11 +55,10 @@ open http://localhost:8080
 ```bash
 cd ~/workspace/multitune
 
-# 后端（指定静态文件目录为 web/，媒体目录为本地 media/）
+# 后端（指定静态文件目录为 web/）
 cd backend
 go mod download
-mkdir -p ../media/home ../media/usb ../media/smb
-STATIC_PATH=../web MEDIA_ROOT=../media go run ./cmd/server
+STATIC_PATH=../web go run ./cmd/server
 
 # 完整版前端（开发模式）
 cd ../frontend

@@ -13,7 +13,7 @@ func TestHandler_StreamSong(t *testing.T) {
 	r := h.SetupRouter()
 
 	// 创建真实音频文件并直接入库
-	sourceDir := filepath.Join(h.cfg.MediaRoot, "home")
+	sourceDir := filepath.Join(t.TempDir(), "home")
 	if err := os.MkdirAll(sourceDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestHandler_StreamSong_Range(t *testing.T) {
 	h := newTestHandler(t)
 	r := h.SetupRouter()
 
-	sourceDir := filepath.Join(h.cfg.MediaRoot, "home")
+	sourceDir := filepath.Join(t.TempDir(), "home")
 	if err := os.MkdirAll(sourceDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestHandler_StreamSong_FileMissing(t *testing.T) {
 	r := h.SetupRouter()
 
 	// 直接入库一个指向不存在文件的路径
-	song, _ := h.songRepo.Upsert(filepath.Join(h.cfg.MediaRoot, "home", "missing.mp3"), "home", "Missing", "", "", 100)
+	song, _ := h.songRepo.Upsert(filepath.Join(t.TempDir(), "home", "missing.mp3"), "home", "Missing", "", "", 100)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/songs/"+song.Song.ID+"/stream", nil)

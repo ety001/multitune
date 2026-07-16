@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/ety001/multitune/internal/fsutil"
 	"github.com/ety001/multitune/internal/model"
 	"github.com/ety001/multitune/internal/scanner"
 	"github.com/gin-gonic/gin"
@@ -31,14 +30,6 @@ func (h *Handler) ScanSongs(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, model.APIResponse{
 			Code:    ErrCodePathNotAccessible,
 			Message: "路径不能为空",
-		})
-		return
-	}
-
-	if err := fsutil.ValidateMediaPath(h.cfg.MediaRoot, req.Path); err != nil {
-		c.JSON(http.StatusBadRequest, model.APIResponse{
-			Code:    ErrCodePathNotAccessible,
-			Message: err.Error(),
 		})
 		return
 	}

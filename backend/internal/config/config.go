@@ -10,7 +10,6 @@ import (
 type Config struct {
 	Port                    string
 	DataPath                string
-	MediaRoot               string
 	DatabaseName            string
 	MaxIdentities           int
 	MaxPlaylistsPerIdentity int
@@ -27,7 +26,6 @@ func Load() *Config {
 	cfg := &Config{
 		Port:                    getEnv("PORT", "8080"),
 		DataPath:                getEnv("DATA_PATH", "/app/data"),
-		MediaRoot:               getEnv("MEDIA_ROOT", "/app/media"),
 		DatabaseName:            getEnv("DATABASE_NAME", "multitune.db"),
 		MaxIdentities:           getEnvInt("MAX_IDENTITIES", 20),
 		MaxPlaylistsPerIdentity: getEnvInt("MAX_PLAYLISTS_PER_IDENTITY", 50),

@@ -456,7 +456,7 @@ CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_
     "songs": [
       {
         "id": "song-1",
-        "path": "/app/media/home/music/xxx.mp3",
+        "path": "/music/xxx.mp3",
         "source": "home",
         "title": "歌曲名",
         "artist": "歌手",
@@ -532,14 +532,14 @@ CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_
 **请求体**：
 ```json
 {
-  "path": "/app/media/home/music"
+  "path": "/music"
 }
 ```
 
 或扫描单个文件：
 ```json
 {
-  "path": "/app/media/home/music/xxx.mp3"
+  "path": "/music/xxx.mp3"
 }
 ```
 
@@ -554,7 +554,7 @@ CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_
     "songs": [
       {
         "id": "song-1",
-        "path": "/app/media/home/music/xxx.mp3",
+        "path": "/music/xxx.mp3",
         "source": "home",
         "title": "歌曲名",
         "artist": "歌手",
@@ -568,7 +568,7 @@ CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_
 
 **说明**：
 - 扫描是幂等的，同一目录多次扫描不会重复入库。
-- **source 字段推断**：根据扫描路径相对于 `MEDIA_ROOT` 的第一级子目录自动确定。例如 `/app/media/home/music` → source 为 `home`；`/app/media/usb/songs` → source 为 `usb`。
+- **source 字段推断**：根据扫描路径的绝对路径第一级目录名自动确定。例如 `/home/user/music/xxx.mp3` → source 为 `home`；无法推断时回退为 `unknown`。
 - **re-scan 更新策略**：如果文件已存在（按 `path` 匹配），使用 `INSERT OR REPLACE` 语义更新元数据（title/artist/album/duration/cover_url），这样用户修改 ID3 标签后重新扫描可生效。
 - 扫描只发现支持的音频格式：mp3, flac, m4a, aac, ogg, wav。
 - 扫描过程异步或同步均可，目录大时建议返回任务 ID（V1 可简化为同步）。
@@ -621,7 +621,7 @@ CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_
 ### 3.4 文件浏览器 API
 
 #### GET /api/fs/sources
-获取已挂载的存储源列表。
+获取文件系统入口。应用不再锁定 `MEDIA_ROOT`，始终返回根目录源，前端可从此进入任意目录。
 
 **响应**：
 ```json
@@ -630,24 +630,21 @@ CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_
   "message": "ok",
   "data": {
     "items": [
-      { "id": "home", "name": "主目录", "path": "/app/media/home", "available": true },
-      { "id": "usb", "name": "USB 存储", "path": "/app/media/usb", "available": false },
-      { "id": "smb", "name": "SMB 共享", "path": "/app/media/smb", "available": true }
+      { "id": "root", "name": "根目录", "path": "/", "available": true }
     ]
   }
 }
 ```
 
 **说明**：
-- `available` 表示该存储源目录当前是否可访问（USB 拔出/SMB 断开时为 `false`）。
-- 后端通过检查目录是否存在且可读来确定 `available`。
-- 前端应根据 `available` 标记不可用的存储源和其中的歌曲，提示用户而非报错。
+- 返回的 `root` 源固定为 `/`，前端通过 `/api/fs/list?path=xxx` 浏览任意挂载目录。
+- 容器内的实际可访问范围取决于部署时的挂载配置。
 
 #### GET /api/fs/list?path=xxx
 列出指定路径下的文件和文件夹。
 
 **查询参数**：
-- `path`: 容器内绝对路径，如 `/app/media/home/music`
+- `path`: 容器内绝对路径，如 `/music`
 
 **响应**：
 ```json
@@ -655,18 +652,18 @@ CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_
   "code": 0,
   "message": "ok",
   "data": {
-    "path": "/app/media/home/music",
-    "parent": "/app/media/home",
+    "path": "/music",
+    "parent": "/",
     "items": [
       {
         "name": "pop",
         "type": "dir",
-        "path": "/app/media/home/music/pop"
+        "path": "/music/pop"
       },
       {
         "name": "xxx.mp3",
         "type": "file",
-        "path": "/app/media/home/music/xxx.mp3",
+        "path": "/music/xxx.mp3",
         "is_audio": true,
         "size": 5242880
       }
@@ -792,7 +789,6 @@ PRD 3.3 中音量控制为 P0 功能。
 |---|---|---|
 | `PORT` | `8080` | HTTP 服务端口 |
 | `DATA_PATH` | `/app/data` | SQLite 数据库与封面缓存目录 |
-| `MEDIA_ROOT` | `/app/media` | 音乐文件挂载根目录 |
 | `DATABASE_NAME` | `multitune.db` | SQLite 数据库文件名 |
 | `MAX_IDENTITIES` | `20` | 最大身份数量 |
 | `MAX_PLAYLISTS_PER_IDENTITY` | `50` | 每个身份最大歌单数 |
@@ -831,13 +827,14 @@ CREATE TABLE IF NOT EXISTS _migrations (
 
 ## 六、安全设计
 
-### 6.1 路径校验
-- `/api/fs/list`、`/api/scan`、`/api/stream` 必须校验路径在 `MEDIA_ROOT` 下，禁止访问容器其他目录。
-- 拒绝包含 `..`、软链接跳出 `MEDIA_ROOT` 的路径。
+### 6.1 路径访问
+- 应用不锁定 `MEDIA_ROOT`，`/api/fs/list`、`/api/scan`、`/api/stream` 均可访问容器文件系统内的任意路径。
+- 路径不存在或非目录时返回 400；流接口通过 `song_id` 查询 `songs.path`，不直接接受客户端路径，文件不可读时返回 404。
+- 访问范围由部署方通过容器挂载和外部网关自行控制。
 
 ### 6.2 音频流安全
 - `/api/stream` 通过 `song_id` 查询 `songs.path`，不直接接受客户端路径。
-- 返回前再次校验文件在 `MEDIA_ROOT` 下且可读。
+- 文件不存在或不可读时返回 404/403，不暴露容器内其他信息。
 
 ### 6.3 身份隔离
 - 所有按身份查询的接口必须校验 `identity_id` 存在。
@@ -854,8 +851,7 @@ CREATE TABLE IF NOT EXISTS _migrations (
 
 ### 7.2 扫描流程
 ```
-1. 校验路径是否在 /app/media/ 下
-2. 递归遍历目录
+1. 递归遍历目录
 3. 识别支持的音频格式
 4. 读取 ID3 标签（标题/艺术家/专辑/封面）
 5. 计算歌曲时长
