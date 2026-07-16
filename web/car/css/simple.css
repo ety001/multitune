@@ -76,14 +76,14 @@ html, body {
 }
 
 .player-cover {
-  width: 180px;
-  height: 180px;
+  width: 150px;
+  height: 150px;
   margin: 0 auto 24px;
   border-radius: 20px;
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
   text-align: center;
-  line-height: 180px;
-  font-size: 72px;
+  line-height: 150px;
+  font-size: 60px;
   color: #fff;
   box-shadow: 0 8px 32px rgba(99, 102, 241, 0.25);
 }
