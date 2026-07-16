@@ -404,15 +404,12 @@
 
     updateModeBtn: function() {
       var iconClass = 'fa-arrow-right';
-      var text = '顺序播放';
       if (this.mode === 'random') {
         iconClass = 'fa-shuffle';
-        text = '随机播放';
       } else if (this.mode === 'single-loop') {
         iconClass = 'fa-rotate-right';
-        text = '单曲循环';
       }
-      $(this.options.modeBtn).html('<i class="fas ' + iconClass + '"></i> <span>' + text + '</span>');
+      $(this.options.modeBtn).find('#modeIcon').attr('class', 'fas ' + iconClass);
     },
 
     seek: function(value) {
