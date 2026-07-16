@@ -47,6 +47,13 @@ function playSong(song) {
   playerStore.playSong(song, playlistStore.currentPlaylist, identity.value)
 }
 
+function confirmRemove(song) {
+  if (!confirm('确定要从歌单中移除「' + (song.title || '未知歌曲') + '」吗？')) {
+    return
+  }
+  playlistStore.removeSong(playlistStore.currentPlaylist.id, song.id)
+}
+
 function toggleMode() {
   const modes = ['order', 'random', 'single-loop']
   const idx = modes.indexOf(playerStore.mode)
@@ -96,8 +103,6 @@ function modeIcon(mode) {
             <tr>
               <th>#</th>
               <th>歌曲</th>
-              <th>艺术家</th>
-              <th>时长</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -110,10 +115,8 @@ function modeIcon(mode) {
             >
               <td>{{ index + 1 }}</td>
               <td>{{ song.title }}</td>
-              <td>{{ song.artist || '-' }}</td>
-              <td>{{ song.duration ? Math.floor(song.duration / 60) + ':' + (song.duration % 60 < 10 ? '0' : '') + (song.duration % 60) : '-' }}</td>
               <td>
-                <button class="btn btn-danger btn-small" @click.stop="playlistStore.removeSong(playlistStore.currentPlaylist.id, song.id)">移除</button>
+                <button class="btn btn-danger btn-small" @click.stop="confirmRemove(song)">移除</button>
               </td>
             </tr>
           </tbody>

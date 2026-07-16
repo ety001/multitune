@@ -474,7 +474,6 @@
         var activeClass = i === this.currentIndex ? ' active' : '';
         html += '<div class="song-list-item' + activeClass + '" data-index="' + i + '">';
         html += '<div class="song-list-title">' + escapeHtml(song.title || '未知歌曲') + '</div>';
-        html += '<div class="song-list-artist">' + escapeHtml(song.artist || '-') + '</div>';
         html += '</div>';
       }
       $list.html(html);
