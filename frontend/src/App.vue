@@ -34,8 +34,10 @@ function goToPlayer() {
 <template>
   <div class="app">
     <header class="app-header">
-      <h1>多音盒 MultiTune</h1>
-      <span class="app-tag">完整版</span>
+      <div class="app-brand">
+        <h1>多音盒 MultiTune</h1>
+        <span class="app-tag">完整版</span>
+      </div>
       <nav class="app-nav">
         <RouterLink to="/identities" :class="{ active: route.path.startsWith('/identities') }">身份</RouterLink>
         <RouterLink to="/file-browser" :class="{ active: route.path === '/file-browser' }">文件浏览器</RouterLink>
@@ -92,12 +94,19 @@ body {
   background: rgba(15, 23, 42, 0.95);
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.app-brand {
+  display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
 
-.app-header h1 {
+.app-brand h1 {
   font-size: 20px;
 }
 
@@ -110,7 +119,6 @@ body {
 }
 
 .app-nav {
-  margin-left: auto;
   display: flex;
   gap: 16px;
 }
@@ -267,7 +275,6 @@ input[type="text"]:focus {
     padding: 12px 16px;
   }
   .app-nav {
-    margin-left: 0;
     width: 100%;
   }
   .app-main {
