@@ -273,7 +273,7 @@ function formatBytes(bytes) {
       </div>
 
       <div v-if="!fileStore.loading && fileStore.sources.length === 0" class="empty card">
-        文件浏览器需要后端能够访问容器文件系统根目录，请检查挂载与权限。
+        文件浏览器需要后端配置至少一个可访问的存储源才能浏览文件。
       </div>
 
       <div v-if="fileStore.sources.length > 0">
