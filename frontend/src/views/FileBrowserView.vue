@@ -21,6 +21,23 @@ const searchQuery = ref('')
 const viewMode = ref('browse')
 const scanProgress = ref(null)
 
+// 创建身份弹层
+const showCreateIdentityModal = ref(false)
+const newIdentityName = ref('')
+const newIdentityColor = ref(randomColor())
+const createIdentityLoading = ref(false)
+
+// 创建歌单弹层
+const showCreatePlaylistModal = ref(false)
+const newPlaylistName = ref('')
+const createPlaylistTargetIdentityId = ref('')
+const createPlaylistLoading = ref(false)
+
+function randomColor() {
+  const colors = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e']
+  return colors[Math.floor(Math.random() * colors.length)]
+}
+
 onMounted(async () => {
   await identityStore.fetchIdentities()
   await fileStore.fetchSources()
@@ -37,6 +54,78 @@ watch(targetIdentityId, async (id) => {
     playlistStore.playlists = []
   }
 })
+
+function openCreateIdentityModal() {
+  newIdentityName.value = ''
+  newIdentityColor.value = randomColor()
+  showCreateIdentityModal.value = true
+}
+
+async function submitCreateIdentity() {
+  const name = newIdentityName.value.trim()
+  if (!name) {
+    return
+  }
+  createIdentityLoading.value = true
+  try {
+    const identity = await identityStore.createIdentity(name, newIdentityColor.value)
+    await identityStore.fetchIdentities()
+    targetIdentityId.value = identity.id
+    showCreateIdentityModal.value = false
+  } catch (e) {
+    alert('创建身份失败：' + e.message)
+  } finally {
+    createIdentityLoading.value = false
+  }
+}
+
+function openCreatePlaylistModal() {
+  newPlaylistName.value = ''
+  createPlaylistTargetIdentityId.value = targetIdentityId.value
+  showCreatePlaylistModal.value = true
+}
+
+async function submitCreatePlaylist() {
+  const name = newPlaylistName.value.trim()
+  const identityId = createPlaylistTargetIdentityId.value
+  if (!name) {
+    return
+  }
+  if (!identityId) {
+    alert('请先选择目标身份')
+    return
+  }
+  createPlaylistLoading.value = true
+  try {
+    const playlist = await playlistStore.createPlaylist(identityId, name)
+    if (targetIdentityId.value === identityId) {
+      await playlistStore.fetchPlaylists(identityId)
+    }
+    targetIdentityId.value = identityId
+    targetPlaylistId.value = playlist.id
+    showCreatePlaylistModal.value = false
+  } catch (e) {
+    alert('创建歌单失败：' + e.message)
+  } finally {
+    createPlaylistLoading.value = false
+  }
+}
+
+function onIdentitySelectChange(e) {
+  const value = e.target.value
+  if (value === '__create_identity__') {
+    targetIdentityId.value = ''
+    openCreateIdentityModal()
+  }
+}
+
+function onPlaylistSelectChange(e) {
+  const value = e.target.value
+  if (value === '__create_playlist__') {
+    targetPlaylistId.value = ''
+    openCreatePlaylistModal()
+  }
+}
 
 function toggleSelect(path) {
   const idx = selectedPaths.value.indexOf(path)
@@ -264,20 +353,22 @@ function formatBytes(bytes) {
     <div class="target-panel card">
       <div class="target-row">
         <label>目标身份：</label>
-        <select v-model="targetIdentityId">
+        <select :value="targetIdentityId" @change="onIdentitySelectChange">
           <option value="">请选择</option>
           <option v-for="identity in identityStore.identities" :key="identity.id" :value="identity.id">
             {{ identity.name }}
           </option>
+          <option value="__create_identity__">+ 创建身份</option>
         </select>
       </div>
       <div class="target-row">
         <label>目标歌单：</label>
-        <select v-model="targetPlaylistId">
+        <select :value="targetPlaylistId" @change="onPlaylistSelectChange">
           <option value="">请选择</option>
           <option v-for="playlist in playlistStore.playlists" :key="playlist.id" :value="playlist.id">
             {{ playlist.name }}
           </option>
+          <option value="__create_playlist__">+ 创建歌单</option>
         </select>
       </div>
       <div class="target-actions">
@@ -285,6 +376,68 @@ function formatBytes(bytes) {
         <button class="btn btn-primary" :disabled="fileStore.scanLoading" @click="scanAndAddSelected">
           {{ scanProgress ? `扫描中 ${scanProgress.current}/${scanProgress.total}` : '扫描并添加到歌单' }}
         </button>
+      </div>
+    </div>
+
+    <!-- 创建身份弹层 -->
+    <div v-if="showCreateIdentityModal" class="modal-overlay" @click.self="showCreateIdentityModal = false">
+      <div class="modal-dialog-box">
+        <div class="modal-header-box">
+          <h3>创建身份</h3>
+          <button class="modal-close" @click="showCreateIdentityModal = false">&times;</button>
+        </div>
+        <div class="modal-body-box">
+          <div v-if="createIdentityLoading" class="modal-loading">创建中...</div>
+          <div v-else>
+            <div class="form-row">
+              <label>身份名称</label>
+              <input v-model="newIdentityName" type="text" placeholder="请输入身份名称" maxlength="50" />
+            </div>
+            <div class="form-row">
+              <label>卡片颜色</label>
+              <div class="color-row">
+                <input v-model="newIdentityColor" type="color" />
+                <button class="btn btn-secondary" @click="newIdentityColor = randomColor()">换个颜色</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer-box">
+          <button class="btn btn-secondary" :disabled="createIdentityLoading" @click="showCreateIdentityModal = false">取消</button>
+          <button class="btn btn-primary" :disabled="createIdentityLoading || !newIdentityName.trim()" @click="submitCreateIdentity">创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 创建歌单弹层 -->
+    <div v-if="showCreatePlaylistModal" class="modal-overlay" @click.self="showCreatePlaylistModal = false">
+      <div class="modal-dialog-box">
+        <div class="modal-header-box">
+          <h3>创建歌单</h3>
+          <button class="modal-close" @click="showCreatePlaylistModal = false">&times;</button>
+        </div>
+        <div class="modal-body-box">
+          <div v-if="createPlaylistLoading" class="modal-loading">创建中...</div>
+          <div v-else>
+            <div class="form-row">
+              <label>目标身份</label>
+              <select v-model="createPlaylistTargetIdentityId">
+                <option value="">请选择</option>
+                <option v-for="identity in identityStore.identities" :key="identity.id" :value="identity.id">
+                  {{ identity.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>歌单名称</label>
+              <input v-model="newPlaylistName" type="text" placeholder="请输入歌单名称" maxlength="50" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer-box">
+          <button class="btn btn-secondary" :disabled="createPlaylistLoading" @click="showCreatePlaylistModal = false">取消</button>
+          <button class="btn btn-primary" :disabled="createPlaylistLoading || !newPlaylistName.trim() || !createPlaylistTargetIdentityId" @click="submitCreatePlaylist">创建</button>
+        </div>
       </div>
     </div>
   </div>
@@ -409,5 +562,99 @@ function formatBytes(bytes) {
 .add-result {
   font-size: 13px;
   color: #10b981;
+}
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal-dialog-box {
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  overflow: hidden;
+}
+.modal-header-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+.modal-header-box h3 {
+  font-size: 18px;
+  margin: 0;
+}
+.modal-close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+}
+.modal-close:hover {
+  color: #e2e8f0;
+}
+.modal-body-box {
+  padding: 20px;
+}
+.modal-footer-box {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+.modal-loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: #94a3b8;
+}
+.form-row {
+  margin-bottom: 16px;
+}
+.form-row:last-child {
+  margin-bottom: 0;
+}
+.form-row label {
+  display: block;
+  font-size: 14px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+.form-row input[type='text'],
+.form-row select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.5);
+  color: #e2e8f0;
+  font-size: 14px;
+}
+.form-row input[type='color'] {
+  width: 60px;
+  height: 40px;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: transparent;
+  cursor: pointer;
+}
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 </style>
