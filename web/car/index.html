@@ -13,7 +13,6 @@
   </div>
 
   <div class="simple-content">
-    <div id="defaultEntry"></div>
     <div class="identity-grid" id="identityGrid">
       <div class="loading">正在加载身份...</div>
     </div>
@@ -28,38 +27,12 @@
   <script>
     (function() {
       var $grid = $('#identityGrid');
-      var $defaultEntry = $('#defaultEntry');
-
-      function renderDefaultEntry(items) {
-        var defaultIdentity = null;
-        for (var i = 0; i < items.length; i++) {
-          if (items[i].is_default) {
-            defaultIdentity = items[i];
-            break;
-          }
-        }
-        if (!defaultIdentity) {
-          $defaultEntry.hide();
-          return;
-        }
-
-        var color = defaultIdentity.avatar_color || '#6366f1';
-        var name = defaultIdentity.name || '未命名';
-        var html = '<a href="./playlist.html?identity_id=' + encodeURIComponent(defaultIdentity.id) + '" class="default-entry-card" style="background:' + color + '">';
-        html += '<div class="default-entry-label">默认身份 · 点击继续</div>';
-        html += '<div class="default-entry-name">' + escapeHtml(name) + '</div>';
-        html += '</a>';
-        $defaultEntry.html(html).show();
-      }
 
       function renderIdentities(items) {
         if (!items || items.length === 0) {
           MultiTune.showEmpty($grid, '暂无身份，请在完整版或 PC 端创建');
-          $defaultEntry.hide();
           return;
         }
-
-        renderDefaultEntry(items);
 
         var html = '';
         for (var i = 0; i < items.length; i++) {
@@ -84,7 +57,6 @@
       MultiTune.get('/identities?limit=100', function(err, data) {
         if (err) {
           MultiTune.showError($grid, '加载身份失败：' + err);
-          $defaultEntry.hide();
           return;
         }
         renderIdentities(data && data.items ? data.items : []);
