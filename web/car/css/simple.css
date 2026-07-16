@@ -26,34 +26,25 @@ html, body {
 }
 
 .player-header {
-  display: table;
-  width: 100%;
+  overflow: hidden;
   padding: 16px 12px;
-  table-layout: fixed;
-}
-
-.header-left,
-.header-center,
-.header-right {
-  display: table-cell;
-  vertical-align: middle;
+  text-align: center;
 }
 
 .header-left {
+  float: left;
   text-align: left;
   white-space: nowrap;
-  width: auto;
 }
 
 .header-right {
+  float: right;
   text-align: right;
   white-space: nowrap;
-  width: auto;
 }
 
 .header-center {
-  text-align: center;
-  width: 100%;
+  overflow: hidden;
   padding: 0 12px;
 }
 
@@ -516,6 +507,39 @@ html, body {
 }
 
 .song-list-artist {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* 弹层内选择项（身份 / 歌单） */
+.identity-select-item,
+.playlist-select-item {
+  padding: 16px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #fff;
+  transition: opacity 0.15s;
+}
+
+.identity-select-item:active,
+.playlist-select-item:active {
+  opacity: 0.85;
+}
+
+.playlist-select-item {
+  background: rgba(148, 163, 184, 0.08);
+  color: #e2e8f0;
+}
+
+.identity-select-name,
+.playlist-select-name {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.playlist-select-meta {
   font-size: 13px;
   color: #94a3b8;
 }

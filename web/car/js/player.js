@@ -25,6 +25,15 @@
 
     loadData: function() {
       var self = this;
+      var identityId = this.options.identityId;
+      var playlistId = this.options.playlistId;
+
+      if (!identityId || !playlistId) {
+        // 缺少参数，进入选择流程
+        this.openIdentityModal();
+        return;
+      }
+
       var playlistLoaded = false;
       var stateLoaded = false;
       var playlistData = null;
@@ -36,7 +45,7 @@
         }
       }
 
-      MultiTune.get('/playlists/' + encodeURIComponent(self.options.playlistId), function(err, data) {
+      MultiTune.get('/playlists/' + encodeURIComponent(playlistId), function(err, data) {
         playlistLoaded = true;
         if (err) {
           $(self.options.playlistNameEl).text('加载失败');
@@ -47,7 +56,7 @@
         tryInit();
       });
 
-      MultiTune.get('/playback/' + encodeURIComponent(self.options.identityId), function(err, data) {
+      MultiTune.get('/playback/' + encodeURIComponent(identityId), function(err, data) {
         stateLoaded = true;
         if (!err && data) {
           stateData = data;
@@ -149,6 +158,46 @@
       if (this.options.songListMask) {
         $(this.options.songListMask).on('click', function() {
           self.closeSongList();
+        });
+      }
+
+      if (this.options.switchIdentityBtn) {
+        $(this.options.switchIdentityBtn).on('click', function() {
+          self.openIdentityModal();
+        });
+      }
+
+      if (this.options.backToPlaylistBtn) {
+        $(this.options.backToPlaylistBtn).on('click', function() {
+          if (self.options.identityId) {
+            self.openPlaylistModal(self.options.identityId);
+          } else {
+            self.openIdentityModal();
+          }
+        });
+      }
+
+      if (this.options.closeIdentityBtn) {
+        $(this.options.closeIdentityBtn).on('click', function() {
+          self.closeIdentityModal();
+        });
+      }
+
+      if (this.options.identityMask) {
+        $(this.options.identityMask).on('click', function() {
+          self.closeIdentityModal();
+        });
+      }
+
+      if (this.options.closePlaylistBtn) {
+        $(this.options.closePlaylistBtn).on('click', function() {
+          self.closePlaylistModal();
+        });
+      }
+
+      if (this.options.playlistMask) {
+        $(this.options.playlistMask).on('click', function() {
+          self.closePlaylistModal();
         });
       }
 
@@ -474,6 +523,123 @@
     closeSongList: function() {
       if (this.options.songListModal) {
         $(this.options.songListModal).hide();
+      }
+    },
+
+    openModal: function(modalSelector) {
+      if (modalSelector) {
+        $(modalSelector).show();
+      }
+    },
+
+    closeModal: function(modalSelector) {
+      if (modalSelector) {
+        $(modalSelector).hide();
+      }
+    },
+
+    openIdentityModal: function() {
+      var self = this;
+      this.openModal(this.options.identityModal);
+      var $list = $(this.options.identityListEl);
+      $list.html('<div class="loading">正在加载身份...</div>');
+
+      MultiTune.get('/identities?limit=100', function(err, data) {
+        if (err) {
+          MultiTune.showError($list, '加载身份失败：' + err);
+          return;
+        }
+        self.renderIdentityList(data && data.items ? data.items : []);
+      });
+    },
+
+    closeIdentityModal: function() {
+      this.closeModal(this.options.identityModal);
+    },
+
+    renderIdentityList: function(items) {
+      var self = this;
+      var $list = $(this.options.identityListEl);
+      if (!items || items.length === 0) {
+        MultiTune.showEmpty($list, '暂无身份，请在完整版或 PC 端创建');
+        return;
+      }
+
+      var html = '';
+      for (var i = 0; i < items.length; i++) {
+        var id = items[i];
+        var color = id.avatar_color || '#6366f1';
+        var name = id.name || '未命名';
+        html += '<div class="identity-select-item" data-id="' + escapeHtml(id.id) + '" style="background:' + color + '">';
+        html += '<div class="identity-select-name">' + escapeHtml(name) + '</div>';
+        html += '</div>';
+      }
+      $list.html(html);
+
+      $list.find('.identity-select-item').on('click', function() {
+        var selectedId = $(this).attr('data-id');
+        self.closeIdentityModal();
+        self.openPlaylistModal(selectedId);
+      });
+    },
+
+    openPlaylistModal: function(identityId) {
+      var self = this;
+      this.options.identityId = identityId;
+      this.openModal(this.options.playlistModal);
+      var $list = $(this.options.playlistListEl);
+      $list.html('<div class="loading">正在加载歌单...</div>');
+
+      MultiTune.get('/identities/' + encodeURIComponent(identityId) + '/playlists?limit=100', function(err, data) {
+        if (err) {
+          MultiTune.showError($list, '加载歌单失败：' + err);
+          return;
+        }
+        self.renderPlaylistList(data && data.items ? data.items : []);
+      });
+    },
+
+    closePlaylistModal: function() {
+      this.closeModal(this.options.playlistModal);
+    },
+
+    renderPlaylistList: function(items) {
+      var self = this;
+      var $list = $(this.options.playlistListEl);
+      if (!items || items.length === 0) {
+        MultiTune.showEmpty($list, '该身份下暂无歌单');
+        return;
+      }
+
+      var html = '';
+      for (var i = 0; i < items.length; i++) {
+        var pl = items[i];
+        var countText = (pl.song_count || 0) + ' 首歌曲';
+        html += '<div class="playlist-select-item" data-id="' + escapeHtml(pl.id) + '">';
+        html += '<div class="playlist-select-name">' + escapeHtml(pl.name || '未命名歌单') + '</div>';
+        html += '<div class="playlist-select-meta">' + countText + '</div>';
+        html += '</div>';
+      }
+      $list.html(html);
+
+      $list.find('.playlist-select-item').on('click', function() {
+        var playlistId = $(this).attr('data-id');
+        self.options.playlistId = playlistId;
+        self.closePlaylistModal();
+        self.updateUrl();
+        self.loadData();
+      });
+    },
+
+    updateUrl: function() {
+      var identityId = this.options.identityId;
+      var playlistId = this.options.playlistId;
+      if (!identityId || !playlistId) {
+        return;
+      }
+      var url = './player.html?identity_id=' + encodeURIComponent(identityId) + '&playlist_id=' + encodeURIComponent(playlistId);
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', url);
       }
     },
 

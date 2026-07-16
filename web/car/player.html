@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>播放器 - 多音盒</title>
-  <link rel="stylesheet" href="./css/simple.css">
-  <link rel="stylesheet" href="./lib/fontawesome/css/all.min.css">
+  <link rel="stylesheet" href="./css/simple.css?v=2">
+  <link rel="stylesheet" href="./lib/fontawesome/css/all.min.css?v=2">
 </head>
 <body class="simple-body">
   <div class="simple-header player-header">
     <div class="header-left">
-      <a href="./playlist.html?identity_id=<!-- set by js -->" id="backToPlaylist" class="header-link">返回歌单</a>
-      <a href="./index.html" class="header-link">切换身份</a>
+      <button class="header-link" id="btnBackToPlaylist">返回歌单</button>
+      <button class="header-link" id="btnSwitchIdentity">切换身份</button>
     </div>
     <div class="header-center">
       <div class="simple-title">正在播放</div>
@@ -54,6 +54,7 @@
     </div>
   </div>
 
+  <!-- 当前播放列表弹层 -->
   <div class="player-list-modal" id="songListModal" style="display: none;">
     <div class="player-list-mask" id="songListMask"></div>
     <div class="player-list-panel">
@@ -67,27 +68,45 @@
     </div>
   </div>
 
+  <!-- 选择身份弹层 -->
+  <div class="player-list-modal" id="identityModal" style="display: none;">
+    <div class="player-list-mask" id="identityMask"></div>
+    <div class="player-list-panel">
+      <div class="player-list-header">
+        <div class="player-list-title">选择身份</div>
+        <button class="player-list-close" id="btnCloseIdentity" title="关闭">&times;</button>
+      </div>
+      <div class="player-list" id="identityList">
+        <div class="loading">正在加载身份...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 选择歌单弹层 -->
+  <div class="player-list-modal" id="playlistModal" style="display: none;">
+    <div class="player-list-mask" id="playlistMask"></div>
+    <div class="player-list-panel">
+      <div class="player-list-header">
+        <div class="player-list-title">选择歌单</div>
+        <button class="player-list-close" id="btnClosePlaylist" title="关闭">&times;</button>
+      </div>
+      <div class="player-list" id="playlistList">
+        <div class="loading">正在加载歌单...</div>
+      </div>
+    </div>
+  </div>
+
   <!-- 音频元素 -->
   <audio id="audioPlayer" preload="metadata"></audio>
 
-  <script src="./js/jquery-3.7.1.min.js"></script>
-  <script src="./js/app.js"></script>
-  <script src="./js/player.js"></script>
+  <script src="./js/jquery-3.7.1.min.js?v=2"></script>
+  <script src="./js/app.js?v=2"></script>
+  <script src="./js/player.js?v=2"></script>
   <script>
     (function() {
-      var identityId = MultiTune.getQuery('identity_id');
-      var playlistId = MultiTune.getQuery('playlist_id');
-
-      if (!identityId || !playlistId) {
-        $('#playerArea').html('<div class="error">缺少身份或歌单参数</div>');
-        return;
-      }
-
-      $('#backToPlaylist').attr('href', './playlist.html?identity_id=' + encodeURIComponent(identityId));
-
       window.MultiTunePlayer.init({
-        identityId: identityId,
-        playlistId: playlistId,
+        identityId: MultiTune.getQuery('identity_id'),
+        playlistId: MultiTune.getQuery('playlist_id'),
         playlistNameEl: '#playlistName',
         titleEl: '#songTitle',
         artistEl: '#songArtist',
@@ -105,7 +124,17 @@
         toggleListBtn: '#btnToggleList',
         closeListBtn: '#btnCloseList',
         songListMask: '#songListMask',
-        songListModal: '#songListModal'
+        songListModal: '#songListModal',
+        switchIdentityBtn: '#btnSwitchIdentity',
+        backToPlaylistBtn: '#btnBackToPlaylist',
+        identityModal: '#identityModal',
+        identityMask: '#identityMask',
+        identityListEl: '#identityList',
+        closeIdentityBtn: '#btnCloseIdentity',
+        playlistModal: '#playlistModal',
+        playlistMask: '#playlistMask',
+        playlistListEl: '#playlistList',
+        closePlaylistBtn: '#btnClosePlaylist'
       });
     })();
   </script>
