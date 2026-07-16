@@ -10,6 +10,7 @@ const newName = ref('')
 const newColor = ref('#6366f1')
 const showCreateModal = ref(false)
 const editing = ref(null)
+const deleting = ref(null)
 const colorInputRef = ref(null)
 const editColorInputRef = ref(null)
 
@@ -63,6 +64,20 @@ async function saveEdit() {
   editing.value = null
 }
 
+function startDelete(identity) {
+  deleting.value = { ...identity }
+}
+
+function closeDeleteModal() {
+  deleting.value = null
+}
+
+async function confirmDelete() {
+  if (!deleting.value) return
+  await store.deleteIdentity(deleting.value.id)
+  closeDeleteModal()
+}
+
 function goPlaylists(id) {
   router.push('/identities/' + id + '/playlists')
 }
@@ -103,7 +118,7 @@ function goPlaylists(id) {
             设为默认
           </button>
           <button class="btn btn-secondary" @click="startEdit(identity)">编辑</button>
-          <button class="btn btn-danger" @click="store.deleteIdentity(identity.id)">删除</button>
+          <button class="btn btn-danger" @click="startDelete(identity)">删除</button>
         </div>
       </div>
     </div>
@@ -132,6 +147,26 @@ function goPlaylists(id) {
         <div class="modal-actions">
           <button class="btn btn-secondary" @click="closeCreateModal">取消</button>
           <button class="btn btn-primary" :disabled="!newName.trim()" @click="createIdentity">创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 删除确认弹层 -->
+    <div v-if="deleting" class="modal">
+      <div class="modal-content card">
+        <div class="modal-header">
+          <h3>删除身份</h3>
+          <button class="modal-close" @click="closeDeleteModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="confirm-text">
+            确定要删除身份 <strong>{{ deleting.name }}</strong> 吗？
+          </p>
+          <p class="confirm-hint">删除后该身份下的所有歌单和播放记录将无法恢复。</p>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="closeDeleteModal">取消</button>
+          <button class="btn btn-danger" @click="confirmDelete">确认删除</button>
         </div>
       </div>
     </div>
@@ -308,5 +343,17 @@ function goPlaylists(id) {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+.confirm-text {
+  font-size: 15px;
+  line-height: 1.6;
+}
+.confirm-text strong {
+  color: #e2e8f0;
+}
+.confirm-hint {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-top: 8px;
 }
 </style>
