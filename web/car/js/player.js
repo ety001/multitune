@@ -477,7 +477,12 @@
 
     openSongList: function() {
       if (this.options.songListModal) {
-        $(this.options.songListModal).modal('show');
+        var self = this;
+        var $modal = $(this.options.songListModal);
+        $modal.one('shown.bs.modal', function() {
+          self.scrollActiveSongIntoView();
+        });
+        $modal.modal('show');
       }
     },
 
@@ -485,6 +490,27 @@
       if (this.options.songListModal) {
         $(this.options.songListModal).modal('hide');
       }
+    },
+
+    scrollActiveSongIntoView: function() {
+      var $list = $(this.options.songListEl);
+      var $active = $list.find('.song-list-item.active');
+      if ($active.length === 0) {
+        return;
+      }
+
+      var listHeight = $list.height();
+      var activeTop = $active.position().top;
+      var activeHeight = $active.outerHeight();
+      var scrollTop = $list.scrollTop();
+
+      // 目标位置：让 active 项居中显示
+      var targetTop = scrollTop + activeTop - (listHeight - activeHeight) / 2;
+      if (targetTop < 0) {
+        targetTop = 0;
+      }
+
+      $list.animate({ scrollTop: targetTop }, 200);
     },
 
     openModal: function(modalSelector) {
