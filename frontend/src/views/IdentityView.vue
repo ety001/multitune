@@ -9,9 +9,9 @@ const store = useIdentityStore()
 const newName = ref('')
 const newColor = ref('#6366f1')
 const showCreateModal = ref(false)
+const createLoading = ref(false)
 const editing = ref(null)
 const deleting = ref(null)
-const colorInputRef = ref(null)
 const editColorInputRef = ref(null)
 
 onMounted(() => {
@@ -41,8 +41,13 @@ function closeCreateModal() {
 async function createIdentity() {
   const name = newName.value.trim()
   if (!name) return
-  await store.createIdentity(name, newColor.value)
-  closeCreateModal()
+  createLoading.value = true
+  try {
+    await store.createIdentity(name, newColor.value)
+    closeCreateModal()
+  } finally {
+    createLoading.value = false
+  }
 }
 
 function startEdit(identity) {
@@ -124,32 +129,31 @@ function goPlaylists(id) {
     </div>
 
     <!-- 新建身份弹层 -->
-    <div v-if="showCreateModal" class="modal">
-      <div class="modal-content card">
-        <div class="modal-header">
+    <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
+      <div class="modal-dialog-box">
+        <div class="modal-header-box">
           <h3>新建身份</h3>
           <button class="modal-close" @click="closeCreateModal">&times;</button>
         </div>
-        <div class="modal-body">
-          <div class="form-row">
-            <label>身份名称</label>
-            <input v-model="newName" type="text" placeholder="例如：爸爸" @keyup.enter="createIdentity" />
-          </div>
-          <div class="form-row">
-            <label>卡片颜色</label>
-            <div class="color-picker-row">
-              <div class="color-picker" @click="colorInputRef?.value?.click()">
-                <div class="color-swatch" :style="{ background: newColor }"></div>
-                <span class="color-value">{{ newColor }}</span>
-                <input ref="colorInputRef" v-model="newColor" type="color" class="color-input" />
+        <div class="modal-body-box">
+          <div v-if="createLoading" class="modal-loading">创建中...</div>
+          <div v-else>
+            <div class="form-row">
+              <label>身份名称</label>
+              <input v-model="newName" type="text" placeholder="请输入身份名称" maxlength="50" @keyup.enter="createIdentity" />
+            </div>
+            <div class="form-row">
+              <label>卡片颜色</label>
+              <div class="color-row">
+                <input v-model="newColor" type="color" />
+                <button class="btn btn-secondary" @click="newColor = randomColor()">换个颜色</button>
               </div>
-              <button class="btn btn-secondary btn-small" @click="newColor = randomColor()">换个颜色</button>
             </div>
           </div>
         </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary" @click="closeCreateModal">取消</button>
-          <button class="btn btn-primary" :disabled="!newName.trim()" @click="createIdentity">创建</button>
+        <div class="modal-footer-box">
+          <button class="btn btn-secondary" :disabled="createLoading" @click="closeCreateModal">取消</button>
+          <button class="btn btn-primary" :disabled="createLoading || !newName.trim()" @click="createIdentity">创建</button>
         </div>
       </div>
     </div>
@@ -367,5 +371,88 @@ function goPlaylists(id) {
   font-size: 13px;
   color: #94a3b8;
   margin-top: 8px;
+}
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal-dialog-box {
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  overflow: hidden;
+}
+.modal-header-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+.modal-header-box h3 {
+  font-size: 18px;
+  margin: 0;
+}
+.modal-body-box {
+  padding: 20px;
+}
+.modal-footer-box {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+.modal-loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: #94a3b8;
+}
+.modal-body-box .form-row {
+  display: block;
+  margin-bottom: 16px;
+}
+.modal-body-box .form-row:last-child {
+  margin-bottom: 0;
+}
+.modal-body-box .form-row label {
+  display: block;
+  font-size: 14px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+.modal-body-box .form-row input[type='text'] {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.5);
+  color: #e2e8f0;
+  font-size: 14px;
+}
+.modal-body-box .form-row input[type='color'] {
+  width: 60px;
+  height: 40px;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: transparent;
+  cursor: pointer;
+}
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 </style>
