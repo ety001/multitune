@@ -17,6 +17,7 @@ const identity = ref(null)
 const newName = ref('')
 const showCreateModal = ref(false)
 const editing = ref(null)
+const deleting = ref(null)
 const error = ref(null)
 
 onMounted(async () => {
@@ -64,6 +65,20 @@ async function saveEdit() {
   editing.value = null
 }
 
+function startDelete(playlist) {
+  deleting.value = { ...playlist }
+}
+
+function closeDeleteModal() {
+  deleting.value = null
+}
+
+async function confirmDelete() {
+  if (!deleting.value) return
+  await playlistStore.deletePlaylist(deleting.value.id)
+  closeDeleteModal()
+}
+
 function goPlayer(playlist) {
   router.push('/playlists/' + playlist.id)
 }
@@ -96,7 +111,7 @@ function goPlayer(playlist) {
         </div>
         <div class="playlist-actions" @click.stop>
           <button class="btn btn-secondary" @click="startEdit(playlist)">编辑</button>
-          <button class="btn btn-danger" @click="playlistStore.deletePlaylist(playlist.id)">删除</button>
+          <button class="btn btn-danger" @click="startDelete(playlist)">删除</button>
         </div>
       </div>
     </div>
@@ -117,6 +132,26 @@ function goPlayer(playlist) {
         <div class="modal-actions">
           <button class="btn btn-secondary" @click="closeCreateModal">取消</button>
           <button class="btn btn-primary" :disabled="!newName.trim()" @click="createPlaylist">创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 删除确认弹层 -->
+    <div v-if="deleting" class="modal">
+      <div class="modal-content card">
+        <div class="modal-header">
+          <h3>删除歌单</h3>
+          <button class="modal-close" @click="closeDeleteModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="confirm-text">
+            确定要删除歌单 <strong>{{ deleting.name }}</strong> 吗？
+          </p>
+          <p class="confirm-hint">删除后歌单中的所有歌曲关联将被移除，但歌曲文件不会被删除。</p>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="closeDeleteModal">取消</button>
+          <button class="btn btn-danger" @click="confirmDelete">确认删除</button>
         </div>
       </div>
     </div>
@@ -256,5 +291,17 @@ a {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+.confirm-text {
+  font-size: 15px;
+  line-height: 1.6;
+}
+.confirm-text strong {
+  color: #e2e8f0;
+}
+.confirm-hint {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-top: 8px;
 }
 </style>
