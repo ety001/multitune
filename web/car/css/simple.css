@@ -18,12 +18,34 @@ html, body {
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
 }
 
-.header-side .btn {
-  margin-left: 8px;
+.header-nav-btn {
+  display: inline-block;
+  padding: 10px 16px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #e2e8f0;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-left: 10px;
 }
 
-.header-side .btn:first-child {
+.header-nav-btn:first-child {
   margin-left: 0;
+}
+
+.header-nav-btn:hover,
+.header-nav-btn:focus {
+  background: rgba(99, 102, 241, 0.28);
+  border-color: rgba(99, 102, 241, 0.55);
+  color: #fff;
+  text-decoration: none;
+}
+
+.header-nav-btn:active {
+  background: rgba(99, 102, 241, 0.4);
 }
 
 .header-title {
