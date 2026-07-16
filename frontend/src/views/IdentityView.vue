@@ -137,10 +137,13 @@ function goPlaylists(id) {
           </div>
           <div class="form-row">
             <label>卡片颜色</label>
-            <div class="color-picker" @click="colorInputRef?.value?.click()">
-              <div class="color-swatch" :style="{ background: newColor }"></div>
-              <span class="color-value">{{ newColor }}</span>
-              <input ref="colorInputRef" v-model="newColor" type="color" class="color-input" />
+            <div class="color-picker-row">
+              <div class="color-picker" @click="colorInputRef?.value?.click()">
+                <div class="color-swatch" :style="{ background: newColor }"></div>
+                <span class="color-value">{{ newColor }}</span>
+                <input ref="colorInputRef" v-model="newColor" type="color" class="color-input" />
+              </div>
+              <button class="btn btn-secondary btn-small" @click="newColor = randomColor()">换个颜色</button>
             </div>
           </div>
         </div>
@@ -185,10 +188,13 @@ function goPlaylists(id) {
           </div>
           <div class="form-row">
             <label>卡片颜色</label>
-            <div class="color-picker" @click="editColorInputRef?.value?.click()">
-              <div class="color-swatch" :style="{ background: editing.color }"></div>
-              <span class="color-value">{{ editing.color }}</span>
-              <input :ref="editColorInputRef" v-model="editing.color" type="color" class="color-input" />
+            <div class="color-picker-row">
+              <div class="color-picker" @click="editColorInputRef?.value?.click()">
+                <div class="color-swatch" :style="{ background: editing.color }"></div>
+                <span class="color-value">{{ editing.color }}</span>
+                <input :ref="editColorInputRef" v-model="editing.color" type="color" class="color-input" />
+              </div>
+              <button class="btn btn-secondary btn-small" @click="editing.color = randomColor()">换个颜色</button>
             </div>
           </div>
         </div>
@@ -313,6 +319,12 @@ function goPlaylists(id) {
 .form-row label {
   font-size: 14px;
   color: #cbd5e1;
+}
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .color-picker {
   display: flex;
