@@ -34,14 +34,16 @@ function goToPlayer() {
 <template>
   <div class="app">
     <header class="app-header">
-      <div class="app-brand">
-        <h1>多音盒 MultiTune</h1>
-        <span class="app-tag">完整版</span>
+      <div class="app-header-inner">
+        <div class="app-brand">
+          <h1>多音盒 MultiTune</h1>
+          <span class="app-tag">完整版</span>
+        </div>
+        <nav class="app-nav">
+          <RouterLink to="/identities" :class="{ active: route.path.startsWith('/identities') }">身份</RouterLink>
+          <RouterLink to="/file-browser" :class="{ active: route.path === '/file-browser' }">文件浏览器</RouterLink>
+        </nav>
       </div>
-      <nav class="app-nav">
-        <RouterLink to="/identities" :class="{ active: route.path.startsWith('/identities') }">身份</RouterLink>
-        <RouterLink to="/file-browser" :class="{ active: route.path === '/file-browser' }">文件浏览器</RouterLink>
-      </nav>
     </header>
 
     <main class="app-main">
@@ -90,9 +92,15 @@ body {
 }
 
 .app-header {
-  padding: 16px 24px;
   background: rgba(15, 23, 42, 0.95);
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.app-header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 16px 24px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -141,6 +149,9 @@ body {
   flex: 1;
   padding: 24px;
   padding-bottom: 100px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .card {
@@ -271,7 +282,7 @@ input[type="text"]:focus {
 }
 
 @media (max-width: 600px) {
-  .app-header {
+  .app-header-inner {
     padding: 12px 16px;
   }
   .app-nav {

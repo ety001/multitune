@@ -166,8 +166,8 @@ function modeLabel(mode) {
 }
 .player-layout {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 24px;
   align-items: flex-start;
 }
 .playlist-panel {

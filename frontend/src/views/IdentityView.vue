@@ -8,18 +8,40 @@ const store = useIdentityStore()
 
 const newName = ref('')
 const newColor = ref('#6366f1')
+const showCreateModal = ref(false)
 const editing = ref(null)
+const colorInputRef = ref(null)
+const editColorInputRef = ref(null)
 
 onMounted(() => {
   store.fetchIdentities()
 })
 
+function randomColor() {
+  const colors = [
+    '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
+    '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6',
+    '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899',
+    '#f43f5e', '#78716c', '#475569', '#64748b', '#94a3b8',
+  ]
+  return colors[Math.floor(Math.random() * colors.length)]
+}
+
+function openCreateModal() {
+  newName.value = ''
+  newColor.value = randomColor()
+  showCreateModal.value = true
+}
+
+function closeCreateModal() {
+  showCreateModal.value = false
+}
+
 async function createIdentity() {
   const name = newName.value.trim()
   if (!name) return
   await store.createIdentity(name, newColor.value)
-  newName.value = ''
-  newColor.value = '#6366f1'
+  closeCreateModal()
 }
 
 function startEdit(identity) {
@@ -48,15 +70,12 @@ function goPlaylists(id) {
 
 <template>
   <div>
-    <div class="page-title">
-      <h2>身份管理</h2>
-      <p class="hint">点击身份卡片进入对应歌单，快速切换默认上车身份。</p>
-    </div>
-
-    <div class="create-bar card">
-      <input v-model="newName" type="text" placeholder="新身份名称，例如：爸爸" />
-      <input v-model="newColor" type="color" title="卡片颜色" />
-      <button class="btn btn-primary" @click="createIdentity">新建身份</button>
+    <div class="page-header">
+      <div class="page-title">
+        <h2>身份管理</h2>
+        <p class="hint">点击身份卡片进入对应歌单，快速切换默认上车身份。</p>
+      </div>
+      <button class="btn btn-primary" @click="openCreateModal">+ 新建身份</button>
     </div>
 
     <div v-if="store.error" class="error">{{ store.error }}</div>
@@ -89,14 +108,58 @@ function goPlaylists(id) {
       </div>
     </div>
 
-    <div v-if="editing" class="modal" @click.self="editing = null">
+    <!-- 新建身份弹层 -->
+    <div v-if="showCreateModal" class="modal">
       <div class="modal-content card">
-        <h3>编辑身份</h3>
-        <input v-model="editing.name" type="text" placeholder="身份名称" />
-        <input v-model="editing.color" type="color" />
+        <div class="modal-header">
+          <h3>新建身份</h3>
+          <button class="modal-close" @click="closeCreateModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row">
+            <label>身份名称</label>
+            <input v-model="newName" type="text" placeholder="例如：爸爸" @keyup.enter="createIdentity" />
+          </div>
+          <div class="form-row">
+            <label>卡片颜色</label>
+            <div class="color-picker" @click="colorInputRef?.value?.click()">
+              <div class="color-swatch" :style="{ background: newColor }"></div>
+              <span class="color-value">{{ newColor }}</span>
+              <input ref="colorInputRef" v-model="newColor" type="color" class="color-input" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="closeCreateModal">取消</button>
+          <button class="btn btn-primary" :disabled="!newName.trim()" @click="createIdentity">创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑身份弹层 -->
+    <div v-if="editing" class="modal">
+      <div class="modal-content card">
+        <div class="modal-header">
+          <h3>编辑身份</h3>
+          <button class="modal-close" @click="editing = null">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row">
+            <label>身份名称</label>
+            <input v-model="editing.name" type="text" placeholder="身份名称" @keyup.enter="saveEdit" />
+          </div>
+          <div class="form-row">
+            <label>卡片颜色</label>
+            <div class="color-picker" @click="editColorInputRef?.value?.click()">
+              <div class="color-swatch" :style="{ background: editing.color }"></div>
+              <span class="color-value">{{ editing.color }}</span>
+              <input :ref="editColorInputRef" v-model="editing.color" type="color" class="color-input" />
+            </div>
+          </div>
+        </div>
         <div class="modal-actions">
           <button class="btn btn-secondary" @click="editing = null">取消</button>
-          <button class="btn btn-primary" @click="saveEdit">保存</button>
+          <button class="btn btn-primary" :disabled="!editing.name.trim()" @click="saveEdit">保存</button>
         </div>
       </div>
     </div>
@@ -104,8 +167,13 @@ function goPlaylists(id) {
 </template>
 
 <style scoped>
-.page-title {
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 .page-title h2 {
   font-size: 22px;
@@ -115,19 +183,9 @@ function goPlaylists(id) {
   color: #94a3b8;
   font-size: 14px;
 }
-.create-bar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.create-bar input[type="text"] {
-  flex: 1;
-  min-width: 180px;
-}
 .identity-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 16px;
 }
 .identity-card {
@@ -172,17 +230,79 @@ function goPlaylists(id) {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
 }
 .modal-content {
-  width: 360px;
+  width: 420px;
+  max-width: calc(100% - 32px);
   display: flex;
   flex-direction: column;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.modal-header h3 {
+  font-size: 18px;
+  font-weight: 500;
+}
+.modal-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.modal-close:hover {
+  color: #e2e8f0;
+}
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.form-row label {
+  font-size: 14px;
+  color: #cbd5e1;
+}
+.color-picker {
+  display: flex;
+  align-items: center;
   gap: 12px;
+  cursor: pointer;
+}
+.color-swatch {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 2px solid rgba(148, 163, 184, 0.3);
+  flex-shrink: 0;
+}
+.color-value {
+  font-size: 14px;
+  color: #94a3b8;
+  font-family: monospace;
+}
+.color-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
 }
 .modal-actions {
   display: flex;

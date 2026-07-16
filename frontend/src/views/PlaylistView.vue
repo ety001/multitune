@@ -15,6 +15,7 @@ const playerStore = usePlayerStore()
 
 const identity = ref(null)
 const newName = ref('')
+const showCreateModal = ref(false)
 const editing = ref(null)
 const error = ref(null)
 
@@ -32,11 +33,20 @@ async function loadIdentity() {
   }
 }
 
+function openCreateModal() {
+  newName.value = ''
+  showCreateModal.value = true
+}
+
+function closeCreateModal() {
+  showCreateModal.value = false
+}
+
 async function createPlaylist() {
   const name = newName.value.trim()
   if (!name) return
   await playlistStore.createPlaylist(props.id, name)
-  newName.value = ''
+  closeCreateModal()
 }
 
 function startEdit(playlist) {
@@ -62,19 +72,16 @@ function goPlayer(playlist) {
 <template>
   <div>
     <div class="page-header">
-      <button class="btn btn-secondary" @click="router.push('/')">← 返回身份列表</button>
-      <div class="page-title">
-        <h2>{{ identity ? identity.name : '歌单管理' }}</h2>
-        <p class="hint">选择歌单进入播放器，或在此管理该身份下的歌单。</p>
-      </div>
+      <button class="btn btn-secondary" @click="router.push('/')">&larr; 返回身份列表</button>
+      <button class="btn btn-primary" @click="openCreateModal">+ 新建歌单</button>
+    </div>
+
+    <div class="page-title">
+      <h2>{{ identity ? identity.name : '歌单管理' }}</h2>
+      <p class="hint">选择歌单进入播放器，或在此管理该身份下的歌单。</p>
     </div>
 
     <div v-if="error" class="error">{{ error }}</div>
-
-    <div class="create-bar card">
-      <input v-model="newName" type="text" placeholder="新歌单名称" />
-      <button class="btn btn-primary" @click="createPlaylist">新建歌单</button>
-    </div>
 
     <div v-if="playlistStore.loading" class="empty">加载中...</div>
     <div v-else-if="playlistStore.playlists.length === 0" class="empty">
@@ -94,13 +101,42 @@ function goPlayer(playlist) {
       </div>
     </div>
 
-    <div v-if="editing" class="modal" @click.self="editing = null">
+    <!-- 新建歌单弹层 -->
+    <div v-if="showCreateModal" class="modal">
       <div class="modal-content card">
-        <h3>编辑歌单</h3>
-        <input v-model="editing.name" type="text" placeholder="歌单名称" />
+        <div class="modal-header">
+          <h3>新建歌单</h3>
+          <button class="modal-close" @click="closeCreateModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row">
+            <label>歌单名称</label>
+            <input v-model="newName" type="text" placeholder="例如：驾驶模式" @keyup.enter="createPlaylist" />
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="closeCreateModal">取消</button>
+          <button class="btn btn-primary" :disabled="!newName.trim()" @click="createPlaylist">创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑歌单弹层 -->
+    <div v-if="editing" class="modal">
+      <div class="modal-content card">
+        <div class="modal-header">
+          <h3>编辑歌单</h3>
+          <button class="modal-close" @click="editing = null">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row">
+            <label>歌单名称</label>
+            <input v-model="editing.name" type="text" placeholder="歌单名称" @keyup.enter="saveEdit" />
+          </div>
+        </div>
         <div class="modal-actions">
           <button class="btn btn-secondary" @click="editing = null">取消</button>
-          <button class="btn btn-primary" @click="saveEdit">保存</button>
+          <button class="btn btn-primary" :disabled="!editing.name.trim()" @click="saveEdit">保存</button>
         </div>
       </div>
     </div>
@@ -111,9 +147,13 @@ function goPlayer(playlist) {
 .page-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
   flex-wrap: wrap;
+}
+.page-title {
+  margin-bottom: 20px;
 }
 .page-title h2 {
   font-size: 22px;
@@ -123,19 +163,9 @@ function goPlayer(playlist) {
   color: #94a3b8;
   font-size: 14px;
 }
-.create-bar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.create-bar input[type="text"] {
-  flex: 1;
-  min-width: 180px;
-}
 .playlist-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 16px;
 }
 .playlist-card {
@@ -173,17 +203,54 @@ a {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
 }
 .modal-content {
-  width: 360px;
+  width: 420px;
+  max-width: calc(100% - 32px);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.modal-header h3 {
+  font-size: 18px;
+  font-weight: 500;
+}
+.modal-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.modal-close:hover {
+  color: #e2e8f0;
+}
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.form-row label {
+  font-size: 14px;
+  color: #cbd5e1;
 }
 .modal-actions {
   display: flex;
