@@ -216,7 +216,7 @@ function formatBytes(bytes) {
                 <input type="checkbox" :checked="isSelected(item.path)" @change="toggleSelect(item.path)" />
               </td>
               <td>
-                <span v-if="item.type === 'dir'" class="dir-name" @click="openDir(item.path)">📁 {{ item.name }}</span>
+                <span v-if="item.type === 'dir'" class="dir-name" @click="openDir(item.path)"><i class="fas fa-folder"></i> {{ item.name }}</span>
                 <span v-else>{{ item.name }}</span>
               </td>
               <td>{{ item.type === 'dir' ? '文件夹' : item.is_audio ? '音频' : '文件' }}</td>

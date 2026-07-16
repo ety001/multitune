@@ -223,7 +223,7 @@
 
       $(this.options.titleEl).text(song.title || '未知歌曲');
       $(this.options.artistEl).text(song.artist || '-');
-      $(this.options.coverEl).text((song.title || '♪').charAt(0));
+      $(this.options.coverEl).html('<i class="fas fa-music"></i>');
 
       audio.src = '/api/songs/' + encodeURIComponent(song.id) + '/stream';
       audio.load();
@@ -272,7 +272,8 @@
     },
 
     updatePlayBtn: function(isPlaying) {
-      $(this.options.playBtn).text(isPlaying ? '⏸' : '▶');
+      var iconClass = isPlaying ? 'fa-pause' : 'fa-play';
+      $(this.options.playBtn).html('<i class="fas ' + iconClass + '"></i>');
     },
 
     playNext: function() {
@@ -384,13 +385,16 @@
     },
 
     updateModeBtn: function() {
+      var iconClass = 'fa-arrow-right';
       var text = '顺序播放';
       if (this.mode === 'random') {
+        iconClass = 'fa-shuffle';
         text = '随机播放';
       } else if (this.mode === 'single-loop') {
+        iconClass = 'fa-rotate-right';
         text = '单曲循环';
       }
-      $(this.options.modeBtn).text(text);
+      $(this.options.modeBtn).html('<i class="fas ' + iconClass + '"></i> <span>' + text + '</span>');
     },
 
     seek: function(value) {

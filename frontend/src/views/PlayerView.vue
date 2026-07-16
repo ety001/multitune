@@ -66,6 +66,13 @@ function modeLabel(mode) {
   if (mode === 'single-loop') return '单曲循环'
   return mode
 }
+
+function modeIcon(mode) {
+  if (mode === 'order') return 'fa-arrow-right'
+  if (mode === 'random') return 'fa-shuffle'
+  if (mode === 'single-loop') return 'fa-rotate-right'
+  return 'fa-question'
+}
 </script>
 
 <template>
@@ -128,16 +135,22 @@ function modeLabel(mode) {
         </div>
 
         <div class="control-buttons">
-          <button class="btn btn-secondary control-btn" @click="playerStore.prev">⏮</button>
-          <button class="btn btn-primary control-btn play-btn" @click="playerStore.togglePlay">
-            {{ playerStore.isPlaying ? '⏸' : '▶' }}
+          <button class="btn btn-secondary control-btn" @click="playerStore.prev" aria-label="上一曲">
+            <i class="fas fa-backward-step"></i>
           </button>
-          <button class="btn btn-secondary control-btn" @click="playerStore.next">⏭</button>
-          <button class="btn btn-secondary control-btn" @click="toggleMode">{{ modeLabel(playerStore.mode) }}</button>
+          <button class="btn btn-primary control-btn play-btn" @click="playerStore.togglePlay" aria-label="播放/暂停">
+            <i class="fas" :class="playerStore.isPlaying ? 'fa-pause' : 'fa-play'"></i>
+          </button>
+          <button class="btn btn-secondary control-btn" @click="playerStore.next" aria-label="下一曲">
+            <i class="fas fa-forward-step"></i>
+          </button>
+          <button class="btn btn-secondary control-btn" @click="toggleMode" :title="modeLabel(playerStore.mode)">
+            <i class="fas" :class="modeIcon(playerStore.mode)"></i>
+          </button>
         </div>
 
         <div class="volume-row">
-          <span>音量</span>
+          <i class="fas fa-volume-high"></i>
           <input type="range" min="0" max="1" step="0.05" v-model.number="playerStore.volume" @input="playerStore.setVolume(playerStore.volume)" />
           <span>{{ Math.round(playerStore.volume * 100) }}%</span>
         </div>

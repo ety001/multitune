@@ -56,11 +56,15 @@ function goToPlayer() {
         <div class="mini-artist">{{ playerStore.currentSong.artist || '' }}</div>
       </div>
       <div class="mini-controls">
-        <button class="btn btn-secondary btn-small" @click="playerStore.prev">⏮</button>
-        <button class="btn btn-primary btn-small" @click="playerStore.togglePlay">
-          {{ playerStore.isPlaying ? '⏸' : '▶' }}
+        <button class="btn btn-secondary btn-small" @click="playerStore.prev" aria-label="上一曲">
+          <i class="fas fa-backward-step"></i>
         </button>
-        <button class="btn btn-secondary btn-small" @click="playerStore.next">⏭</button>
+        <button class="btn btn-primary btn-small" @click="playerStore.togglePlay" aria-label="播放/暂停">
+          <i class="fas" :class="playerStore.isPlaying ? 'fa-pause' : 'fa-play'"></i>
+        </button>
+        <button class="btn btn-secondary btn-small" @click="playerStore.next" aria-label="下一曲">
+          <i class="fas fa-forward-step"></i>
+        </button>
       </div>
       <div class="mini-progress">
         <div
