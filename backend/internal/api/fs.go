@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/ety001/multitune/internal/fsutil"
 	"github.com/ety001/multitune/internal/model"
@@ -20,13 +21,32 @@ const (
 // ListStorageSources GET /api/fs/sources
 // 不再限定媒体根目录，始终返回根目录源，前端可从此进入任意目录。
 func (h *Handler) ListStorageSources(c *gin.Context) {
-	sources := []map[string]interface{}{
-		{
-			"id":        "root",
-			"name":      "根目录",
-			"path":      "/",
-			"available": true,
-		},
+	var sources []map[string]interface{}
+
+	if h.cfg.LazyCatDeploy {
+		sources = []map[string]interface{}{
+			{
+				"id":        "document",
+				"name":      "文档",
+				"path":      "/lzcapp/document",
+				"available": true,
+			},
+			{
+				"id":        "media",
+				"name":      "媒体",
+				"path":      "/lzcapp/media",
+				"available": true,
+			},
+		}
+	} else {
+		sources = []map[string]interface{}{
+			{
+				"id":        "root",
+				"name":      "根目录",
+				"path":      "/",
+				"available": true,
+			},
+		}
 	}
 
 	c.JSON(http.StatusOK, model.APIResponse{
@@ -45,6 +65,19 @@ func (h *Handler) ListDirectory(c *gin.Context) {
 	path := c.Query("path")
 	if path == "" {
 		path = "/"
+	}
+
+	if h.cfg.LazyCatDeploy {
+		if path == "/" {
+			path = "/lzcapp"
+		}
+		if !strings.HasPrefix(path, "/lzcapp") {
+			c.JSON(http.StatusBadRequest, model.APIResponse{
+				Code:    ErrCodePathNotAccessible,
+				Message: "无权限访问该路径",
+			})
+			return
+		}
 	}
 
 	items, err := fsutil.ListDirectory(path)
@@ -66,7 +99,10 @@ func (h *Handler) ListDirectory(c *gin.Context) {
 
 	parent := filepath.Dir(path)
 	if parent == path || parent == "" {
-		parent = "/"
+		parent = path
+	}
+	if h.cfg.LazyCatDeploy && parent == "/" {
+		parent = "/lzcapp"
 	}
 
 	c.JSON(http.StatusOK, model.APIResponse{

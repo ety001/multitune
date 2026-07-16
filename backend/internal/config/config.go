@@ -19,6 +19,7 @@ type Config struct {
 	LogLevel                string
 	GINMode                 string
 	StaticPath              string
+	LazyCatDeploy           bool
 }
 
 // Load 从环境变量加载配置
@@ -35,6 +36,7 @@ func Load() *Config {
 		LogLevel:                getEnv("LOG_LEVEL", "info"),
 		GINMode:                 getEnv("GIN_MODE", "release"),
 		StaticPath:              getEnv("STATIC_PATH", "/app/static"),
+		LazyCatDeploy:           getEnvBool("LAZYCAT_DEPLOY", false),
 	}
 
 	if _, err := strconv.Atoi(cfg.Port); err != nil {
@@ -73,6 +75,21 @@ func getEnvInt(key string, defaultValue int) int {
 		return defaultValue
 	}
 	return n
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultValue
+	}
+	switch strings.ToLower(v) {
+	case "true", "1", "yes", "on":
+		return true
+	case "false", "0", "no", "off":
+		return false
+	default:
+		return defaultValue
+	}
 }
 
 func getEnvSlice(key string, defaultValue []string) []string {
