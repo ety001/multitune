@@ -99,11 +99,18 @@ html, body {
   color: #94a3b8;
 }
 
-/* 控制按钮 */
-.player-controls {
-  text-align: center;
-  padding: 20px;
+/* 控制按钮行 */
+.player-controls-row {
+  padding: 20px 10px;
   font-size: 0;
+}
+
+.player-controls-side {
+  line-height: 64px;
+}
+
+.player-controls-center {
+  line-height: 64px;
 }
 
 .player-control-btn {

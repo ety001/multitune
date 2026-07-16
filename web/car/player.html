@@ -43,14 +43,20 @@
         </div>
       </div>
 
-      <div class="player-controls">
-        <button class="player-control-btn" id="btnMode" title="切换播放模式"><i class="fas" id="modeIcon"></i></button>
-        <button class="player-control-btn" id="btnPrev" title="上一曲"><i class="fas fa-backward-step"></i></button>
-        <button class="player-control-btn large" id="btnPlay" title="播放/暂停"><i class="fas fa-play"></i></button>
-        <button class="player-control-btn" id="btnNext" title="下一曲"><i class="fas fa-forward-step"></i></button>
-        <div class="player-volume-inline" title="音量">
-          <i class="fas fa-volume-high"></i>
-          <input type="range" id="volumeBar" min="0" max="100" value="100">
+      <div class="player-controls-row row">
+        <div class="col-xs-3 text-left player-controls-side">
+          <button class="player-control-btn" id="btnMode" title="切换播放模式"><i class="fas" id="modeIcon"></i></button>
+        </div>
+        <div class="col-xs-6 text-center player-controls-center">
+          <button class="player-control-btn" id="btnPrev" title="上一曲"><i class="fas fa-backward-step"></i></button>
+          <button class="player-control-btn large" id="btnPlay" title="播放/暂停"><i class="fas fa-play"></i></button>
+          <button class="player-control-btn" id="btnNext" title="下一曲"><i class="fas fa-forward-step"></i></button>
+        </div>
+        <div class="col-xs-3 text-right player-controls-side">
+          <div class="player-volume-inline" title="音量">
+            <i class="fas fa-volume-high"></i>
+            <input type="range" id="volumeBar" min="0" max="100" value="100">
+          </div>
         </div>
       </div>
     </div>
