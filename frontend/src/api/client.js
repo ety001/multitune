@@ -75,6 +75,11 @@ export const fsApi = {
   scan: (path) => api.post('/scan', { path }),
 }
 
+export const scanApi = {
+  createJob: (body) => api.post('/scan/jobs', body),
+  getJob: (id) => api.get('/scan/jobs/' + id),
+}
+
 export const playbackApi = {
   get: (identityId) => api.get('/playback/' + identityId),
   save: (identityId, body) => api.post('/playback/' + identityId, body),

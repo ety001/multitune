@@ -5,6 +5,7 @@ import { useFileBrowserStore } from '../stores/fileBrowser'
 import { useIdentityStore } from '../stores/identity'
 import { usePlaylistStore } from '../stores/playlist'
 import { usePlayerStore } from '../stores/player'
+import { scanApi } from '../api/client'
 
 const router = useRouter()
 const fileStore = useFileBrowserStore()
@@ -18,6 +19,7 @@ const targetPlaylistId = ref('')
 const addResult = ref('')
 const searchQuery = ref('')
 const viewMode = ref('browse')
+const scanProgress = ref(null)
 
 onMounted(async () => {
   await identityStore.fetchIdentities()
@@ -75,30 +77,37 @@ async function scanAndAddSelected() {
     return
   }
 
-  const allSongIds = []
-  for (const path of selectedPaths.value) {
-    try {
-      const result = await fileStore.scanPath(path)
-      if (result && result.songs) {
-        result.songs.forEach((song) => allSongIds.push(song.id))
-      }
-    } catch (e) {
-      addResult.value = '扫描失败：' + e.message
-      return
-    }
-  }
-
-  if (allSongIds.length === 0) {
-    addResult.value = '未找到可添加的音频文件'
-    return
-  }
+  fileStore.scanLoading = true
+  scanProgress.value = { current: 0, total: 0 }
 
   try {
-    const data = await playlistStore.addSongs(targetPlaylistId.value, allSongIds)
-    addResult.value = `成功添加 ${data.added || allSongIds.length} 首歌曲`
-    selectedPaths.value = []
+    const job = await scanApi.createJob({
+      paths: selectedPaths.value,
+      playlist_id: targetPlaylistId.value,
+    })
+
+    const jobId = job.id
+    let finished = false
+    while (!finished) {
+      const status = await scanApi.getJob(jobId)
+      scanProgress.value = { current: status.current, total: status.total }
+
+      if (status.status === 'done') {
+        addResult.value = `成功添加 ${status.added || 0} 首歌曲`
+        selectedPaths.value = []
+        finished = true
+      } else if (status.status === 'error') {
+        addResult.value = '扫描失败：' + (status.message || '未知错误')
+        finished = true
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
+    }
   } catch (e) {
-    addResult.value = '添加失败：' + e.message
+    addResult.value = '扫描失败：' + e.message
+  } finally {
+    fileStore.scanLoading = false
+    scanProgress.value = null
   }
 }
 
@@ -274,7 +283,7 @@ function formatBytes(bytes) {
       <div class="target-actions">
         <span v-if="addResult" class="add-result">{{ addResult }}</span>
         <button class="btn btn-primary" :disabled="fileStore.scanLoading" @click="scanAndAddSelected">
-          {{ fileStore.scanLoading ? '扫描中...' : '扫描并添加到歌单' }}
+          {{ scanProgress ? `扫描中 ${scanProgress.current}/${scanProgress.total}` : '扫描并添加到歌单' }}
         </button>
       </div>
     </div>

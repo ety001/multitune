@@ -72,6 +72,21 @@ type StorageSource struct {
 	Available bool   `json:"available"`
 }
 
+// ScanJob 扫描任务
+// Status: pending -> counting -> scanning -> done / error
+type ScanJob struct {
+	ID         string `json:"id"`
+	PlaylistID string `json:"playlist_id"`
+	Status     string `json:"status"`
+	Total      int    `json:"total"`
+	Current    int    `json:"current"`
+	Added      int    `json:"added"`
+	Updated    int    `json:"updated"`
+	Message    string `json:"message,omitempty"`
+	CreatedAt  int64  `json:"created_at"`
+	UpdatedAt  int64  `json:"updated_at"`
+}
+
 // DeviceLog 设备信息日志
 type DeviceLog struct {
 	ID             int64  `json:"id"`

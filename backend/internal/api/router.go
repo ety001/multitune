@@ -54,6 +54,8 @@ func (h *Handler) SetupRouter() *gin.Engine {
 
 		// 歌曲与扫描 API
 		api.POST("/scan", h.ScanSongs)
+		api.POST("/scan/jobs", h.CreateScanJob)
+		api.GET("/scan/jobs/:id", h.GetScanJob)
 		api.GET("/songs", h.ListSongs)
 		api.GET("/songs/:id", h.GetSong)
 		api.GET("/songs/:id/stream", h.StreamSong)

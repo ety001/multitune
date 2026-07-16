@@ -36,6 +36,9 @@ func New(repo *repository.SongRepo, formats []string) *Scanner {
 // ErrScanInProgress 扫描任务正在进行中
 var ErrScanInProgress = fmt.Errorf("扫描任务正在进行中")
 
+// ScanProgressFunc 扫描进度回调
+type ScanProgressFunc func(current, total int)
+
 // ScanResult 扫描结果
 type ScanResult struct {
 	Scanned int          `json:"scanned"`
@@ -46,6 +49,12 @@ type ScanResult struct {
 
 // ScanPath 扫描指定路径（文件或目录）
 func (s *Scanner) ScanPath(path string) (*ScanResult, error) {
+	return s.ScanPaths([]string{path}, nil)
+}
+
+// ScanPaths 批量扫描多个路径，支持进度回调
+// progress 回调参数：current 为已处理文件数（含非音频文件），total 为文件总数
+func (s *Scanner) ScanPaths(paths []string, progress ScanProgressFunc) (*ScanResult, error) {
 	s.mu.Lock()
 	if s.scanning {
 		s.mu.Unlock()
@@ -60,24 +69,28 @@ func (s *Scanner) ScanPath(path string) (*ScanResult, error) {
 		s.mu.Unlock()
 	}()
 
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("获取路径信息失败: %w", err)
-	}
-
 	result := &ScanResult{
 		Songs: []model.Song{},
 	}
 
-	if info.IsDir() {
-		if err := s.scanDirectory(path, result); err != nil {
+	// 第一阶段：统计所有待处理文件总数（包含非音频文件）
+	if progress != nil {
+		progress(0, 0)
+	}
+
+	total := 0
+	for _, path := range paths {
+		count, err := s.countFiles(path)
+		if err != nil {
 			return nil, err
 		}
-	} else {
-		if !fsutil.IsAudioFile(path) {
-			return nil, fmt.Errorf("不支持的音频格式")
-		}
-		if err := s.scanFile(path, result); err != nil {
+		total += count
+	}
+
+	// 第二阶段：逐个文件处理
+	current := 0
+	for _, path := range paths {
+		if err := s.scanPathWithProgress(path, result, &current, total, progress); err != nil {
 			return nil, err
 		}
 	}
@@ -85,20 +98,70 @@ func (s *Scanner) ScanPath(path string) (*ScanResult, error) {
 	return result, nil
 }
 
-// scanDirectory 递归扫描目录
-func (s *Scanner) scanDirectory(dir string, result *ScanResult) error {
-	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+// countFiles 统计路径下所有文件数量（包含非音频文件）
+func (s *Scanner) countFiles(path string) (int, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, fmt.Errorf("获取路径信息失败: %w", err)
+	}
+
+	if !info.IsDir() {
+		return 1, nil
+	}
+
+	count := 0
+	err = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
-			slog.Warn("扫描路径失败", "path", path, "error", err)
-			return nil // 跳过错误文件继续扫描
-		}
-		if info.IsDir() {
+			slog.Warn("统计路径失败", "path", path, "error", err)
 			return nil
+		}
+		if !info.IsDir() {
+			count++
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// scanPathWithProgress 扫描单个路径并更新进度
+func (s *Scanner) scanPathWithProgress(path string, result *ScanResult, current *int, total int, progress ScanProgressFunc) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("获取路径信息失败: %w", err)
+	}
+
+	if !info.IsDir() {
+		*current++
+		if progress != nil {
+			progress(*current, total)
 		}
 		if !fsutil.IsAudioFile(path) {
 			return nil
 		}
 		return s.scanFile(path, result)
+	}
+
+	return filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			slog.Warn("扫描路径失败", "path", filePath, "error", err)
+			return nil
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		*current++
+		if progress != nil {
+			progress(*current, total)
+		}
+
+		if !fsutil.IsAudioFile(filePath) {
+			return nil
+		}
+		return s.scanFile(filePath, result)
 	})
 }
 
