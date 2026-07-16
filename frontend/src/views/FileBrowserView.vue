@@ -98,10 +98,8 @@ async function submitCreatePlaylist() {
   createPlaylistLoading.value = true
   try {
     const playlist = await playlistStore.createPlaylist(identityId, name)
-    if (targetIdentityId.value === identityId) {
-      await playlistStore.fetchPlaylists(identityId)
-    }
     targetIdentityId.value = identityId
+    await playlistStore.fetchPlaylists(identityId)
     targetPlaylistId.value = playlist.id
     showCreatePlaylistModal.value = false
   } catch (e) {
