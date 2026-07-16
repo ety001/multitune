@@ -88,6 +88,9 @@ func (h *Handler) SetupRouter() *gin.Engine {
 		faviconPath := filepath.Join(staticPath, "favicon.png")
 		if _, err := os.Stat(faviconPath); err == nil {
 			r.StaticFile("/favicon.png", faviconPath)
+			r.GET("/favicon.ico", func(c *gin.Context) {
+				c.Redirect(http.StatusMovedPermanently, "/favicon.png")
+			})
 		}
 	} else {
 		slog.Warn("静态文件目录不存在，仅提供 API 服务", "path", staticPath)
