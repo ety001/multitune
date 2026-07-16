@@ -137,15 +137,20 @@
       });
 
       $(this.options.toggleListBtn).on('click', function() {
-        var $list = $(self.options.songListEl);
-        if ($list.is(':visible')) {
-          $list.hide();
-          $(self.options.toggleListBtn).text('展开播放列表');
-        } else {
-          $list.show();
-          $(self.options.toggleListBtn).text('收起播放列表');
-        }
+        self.openSongList();
       });
+
+      if (this.options.closeListBtn) {
+        $(this.options.closeListBtn).on('click', function() {
+          self.closeSongList();
+        });
+      }
+
+      if (this.options.songListMask) {
+        $(this.options.songListMask).on('click', function() {
+          self.closeSongList();
+        });
+      }
 
       $(audio).on('timeupdate', function() {
         self.updateProgress();
@@ -458,6 +463,18 @@
       setTimeout(function() {
         self.playNext();
       }, 3000);
+    },
+
+    openSongList: function() {
+      if (this.options.songListModal) {
+        $(this.options.songListModal).show();
+      }
+    },
+
+    closeSongList: function() {
+      if (this.options.songListModal) {
+        $(this.options.songListModal).hide();
+      }
     },
 
     renderSongList: function() {
