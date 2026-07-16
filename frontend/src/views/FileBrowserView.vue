@@ -374,6 +374,9 @@ function formatBytes(bytes) {
   gap: 16px;
   align-items: center;
   flex-wrap: wrap;
+  background: #0f172a;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+  z-index: 10;
 }
 .target-row {
   display: flex;
