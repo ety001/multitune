@@ -558,7 +558,9 @@
         var color = id.avatar_color || '#6366f1';
         var name = id.name || '未命名';
         html += '<div class="identity-select-item" data-id="' + escapeHtml(id.id) + '" style="background:' + color + '">';
+        html += '<div class="identity-select-inner">';
         html += '<div class="identity-select-name">' + escapeHtml(name) + '</div>';
+        html += '</div>';
         html += '</div>';
       }
       $list.html(html);

@@ -381,18 +381,37 @@ html, body {
 }
 
 .identity-select-item {
+  float: left;
+  width: 48%;
+  min-height: 90px;
+  margin: 0 1% 12px;
+  color: #fff;
+}
+
+#identityList {
+  overflow: hidden;
+}
+
+.identity-select-inner {
   display: table;
   width: 100%;
-  min-height: 64px;
-  padding: 8px 16px;
-  color: #fff;
+  min-height: 90px;
+  padding: 8px 12px;
 }
 
 .identity-select-name {
   display: table-cell;
   vertical-align: middle;
-  font-size: 18px;
+  text-align: center;
+  font-size: 17px;
   font-weight: bold;
+  word-break: break-all;
+}
+
+@media (min-width: 1024px) {
+  .identity-select-item {
+    width: 23%;
+  }
 }
 
 .playlist-select-item,
