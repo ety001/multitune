@@ -17,7 +17,7 @@ func TestHandler_ListStorageSources(t *testing.T) {
 	r := h.SetupRouter()
 
 	// 创建测试媒体源目录
-	if err := os.MkdirAll(filepath.Join(h.cfg.MediaRoot, "home"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(t.TempDir(), "home"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -42,7 +42,7 @@ func TestHandler_ListDirectory(t *testing.T) {
 	h := newTestHandler(t)
 	r := h.SetupRouter()
 
-	musicDir := filepath.Join(h.cfg.MediaRoot, "home", "music")
+	musicDir := filepath.Join(t.TempDir(), "home", "music")
 	if err := os.MkdirAll(musicDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestHandler_ScanSongs(t *testing.T) {
 	h := newTestHandler(t)
 	r := h.SetupRouter()
 
-	musicDir := filepath.Join(h.cfg.MediaRoot, "home", "music")
+	musicDir := filepath.Join(t.TempDir(), "home", "music")
 	if err := os.MkdirAll(musicDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestHandler_ListSongs(t *testing.T) {
 	r := h.SetupRouter()
 
 	// 先扫描一首歌曲
-	musicDir := filepath.Join(h.cfg.MediaRoot, "home", "music")
+	musicDir := filepath.Join(t.TempDir(), "home", "music")
 	if err := os.MkdirAll(musicDir, 0755); err != nil {
 		t.Fatal(err)
 	}

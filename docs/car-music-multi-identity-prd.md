@@ -288,7 +288,7 @@ Playlist（歌单）:
 
 Song（歌曲，引用）:
   - id: string
-  - path: string          # 容器内绝对路径，如 /app/media/home/xxx.mp3
+  - path: string          # 容器内绝对路径，如 /music/xxx.mp3
   - source: string        # 来源标识：home / usb / smb 等
   - title: string
   - artist: string
@@ -364,9 +364,7 @@ GET    /api/fs/search?q=xxx     # 跨存储源搜索歌曲
 存储源示例响应：
 ```json
 [
-  { "id": "home", "name": "主目录", "path": "/app/media/home", "available": true },
-  { "id": "usb", "name": "USB 存储", "path": "/app/media/usb", "available": false },
-  { "id": "smb", "name": "SMB 共享", "path": "/app/media/smb", "available": true }
+  { "id": "root", "name": "根目录", "path": "/", "available": true }
 ]
 ```
 
@@ -407,7 +405,7 @@ GET /api/songs/:id/stream
 ## 七、懒猫微服 LPK 适配要点
 
 ### 7.1 文件挂载
-多音盒需要访问多个存储源，在 `lzc-manifest.yml` 中声明多个 `binds`，后端在容器内统一映射到 `/app/media/` 下：
+多音盒不再锁定统一的媒体根目录，在 `lzc-manifest.yml` 中按实际需求声明任意 `binds`，后端把每个挂载点都当作可浏览路径：
 
 ```yaml
 services:
@@ -415,16 +413,16 @@ services:
     image: registry.lazycat.cloud/xxx/xxx/multitune:<hash>
     binds:
       # 懒猫微服用户主目录
-      - /lzcapp/home:/app/media/home:ro
+      - /lzcapp/home:/music/home:ro
       # USB 外接存储
-      - /lzcapp/var/usb:/app/media/usb:ro
+      - /lzcapp/var/usb:/music/usb:ro
       # SMB 共享挂载点
-      - /lzcapp/var/smb:/app/media/smb:ro
+      - /lzcapp/var/smb:/music/smb:ro
       # 应用数据（数据库、配置、播放状态）
       - /lzcapp/var/multitune/data:/app/data
 ```
 
-后端启动时扫描 `/app/media/` 下实际存在的子目录作为可用存储源（未挂载的目录不显示）。用户添加歌曲时，歌单只保存容器内绝对路径索引，不复制文件。
+用户添加歌曲时，歌单只保存容器内绝对路径索引，不复制文件。前端从根目录进入后，选择上述挂载目录即可扫描歌曲。
 
 ### 7.2 网络与访问
 - 通过 `application.routes` 暴露 Web UI：
@@ -502,12 +500,11 @@ services:
   multitune:
     image: registry.lazycat.cloud/xxx/xxx/multitune:<hash>
     binds:
-      - /lzcapp/home:/app/media/home:ro
-      - /lzcapp/var/usb:/app/media/usb:ro
-      - /lzcapp/var/smb:/app/media/smb:ro
+      - /lzcapp/home:/music/home:ro
+      - /lzcapp/var/usb:/music/usb:ro
+      - /lzcapp/var/smb:/music/smb:ro
       - /lzcapp/var/multitune/data:/app/data
     environment:
-      - MEDIA_ROOT=/app/media
       - DATA_PATH=/app/data
       - PORT=8080
 ```
@@ -587,7 +584,7 @@ lzc-cli app install
 - [x] 最终确定应用名称：中文 **多音盒**，英文 **MultiTune**，包名 `ink.akawa.ety001.multitune`。
 - [x] 后端服务：使用 **Go + Gin + SQLite**。
 - [x] 前端方案：双版本（Vue 3 现代版 + 纯 ES5 简化版），兼容比亚迪等老版本车机浏览器。
-- [x] 音乐文件来源：通过多个 `binds` 挂载懒猫主目录、USB 存储、SMB 共享到容器内 `/app/media/`，歌单保存文件路径索引。
+- [x] 音乐文件来源：通过多个 `binds` 把懒猫主目录、USB 存储、SMB 共享等挂载到容器内任意路径，歌单保存文件路径索引。
 - [x] 车机兼容：以比亚迪低版本内核为基准，简化版前端兼容 Chrome/WebView ≤ 74，默认覆盖其他车机。
 - [x] 在线功能：歌词、封面下载暂不需要。
 - [x] 音量控制：需要，UI 提供音量滑块。

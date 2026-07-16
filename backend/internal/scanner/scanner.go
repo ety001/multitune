@@ -19,19 +19,17 @@ import (
 
 // Scanner 歌曲扫描器
 type Scanner struct {
-	mediaRoot string
-	repo      *repository.SongRepo
-	mu        sync.Mutex
-	scanning  bool
+	repo     *repository.SongRepo
+	mu       sync.Mutex
+	scanning bool
 }
 
 // New 创建扫描器
-func New(mediaRoot string, repo *repository.SongRepo, formats []string) *Scanner {
+func New(repo *repository.SongRepo, formats []string) *Scanner {
 	// formats 目前由 fsutil.IsAudioFile 统一维护，后续可按需接入 SCAN_FORMATS 配置
 	_ = formats
 	return &Scanner{
-		mediaRoot: mediaRoot,
-		repo:      repo,
+		repo: repo,
 	}
 }
 
@@ -127,14 +125,18 @@ func (s *Scanner) scanFile(path string, result *ScanResult) error {
 }
 
 // inferSource 根据路径推断来源
+// 取绝对路径的第一级目录名作为 source，例如 /home/user/music/xxx.mp3 -> home。
+// 无法推断时返回 unknown。
 func (s *Scanner) inferSource(path string) string {
-	rel, err := filepath.Rel(s.mediaRoot, path)
+	abs, err := filepath.Abs(path)
 	if err != nil {
 		return "unknown"
 	}
-	parts := strings.Split(rel, string(filepath.Separator))
-	if len(parts) > 0 && parts[0] != "" {
-		return parts[0]
+	parts := strings.Split(abs, string(filepath.Separator))
+	for _, p := range parts {
+		if p != "" {
+			return p
+		}
 	}
 	return "unknown"
 }

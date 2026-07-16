@@ -171,48 +171,57 @@ function formatBytes(bytes) {
           {{ source.name }}
           <span v-if="!source.available" class="unavailable">(不可用)</span>
         </button>
+        <span v-if="!fileStore.loading && fileStore.sources.length === 0" class="no-sources">
+          未检测到根目录访问权限，请检查容器挂载与运行权限。
+        </span>
       </div>
 
-      <div class="breadcrumb card">
-        <button class="btn btn-secondary" :disabled="!fileStore.parent || fileStore.parent === fileStore.currentPath" @click="goUp">
-          ↑ 上级
-        </button>
-        <span class="path">{{ fileStore.currentPath || '/' }}</span>
+      <div v-if="!fileStore.loading && fileStore.sources.length === 0" class="empty card">
+        文件浏览器需要后端能够访问容器文件系统根目录，请检查挂载与权限。
       </div>
 
-      <div v-if="fileStore.error" class="error">{{ fileStore.error }}</div>
-      <div v-if="fileStore.loading" class="empty">加载中...</div>
+      <div v-if="fileStore.sources.length > 0">
+        <div class="breadcrumb card">
+          <button class="btn btn-secondary" :disabled="!fileStore.parent || fileStore.parent === fileStore.currentPath" @click="goUp">
+            ↑ 上级
+          </button>
+          <span class="path">{{ fileStore.currentPath || '/' }}</span>
+        </div>
 
-      <table v-else-if="fileStore.items.length > 0" class="file-table card">
-        <thead>
-          <tr>
-            <th style="width: 40px">选择</th>
-            <th>名称</th>
-            <th style="width: 100px">类型</th>
-            <th style="width: 100px">大小</th>
-            <th style="width: 140px">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in fileStore.items" :key="item.path" :class="{ 'audio-row': item.is_audio }">
-            <td>
-              <input type="checkbox" :checked="isSelected(item.path)" @change="toggleSelect(item.path)" />
-            </td>
-            <td>
-              <span v-if="item.type === 'dir'" class="dir-name" @click="openDir(item.path)">📁 {{ item.name }}</span>
-              <span v-else>{{ item.name }}</span>
-            </td>
-            <td>{{ item.type === 'dir' ? '文件夹' : item.is_audio ? '音频' : '文件' }}</td>
-            <td>{{ formatBytes(item.size) }}</td>
-            <td>
-              <button v-if="item.type === 'dir'" class="btn btn-secondary btn-small" @click="fileStore.scanPath(item.path)">扫描</button>
-              <button v-if="item.is_audio" class="btn btn-secondary btn-small" @click="playFile(item.path)">播放</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        <div v-if="fileStore.error" class="error">{{ fileStore.error }}</div>
+        <div v-if="fileStore.loading" class="empty">加载中...</div>
 
-      <div v-else class="empty card">当前目录为空</div>
+        <table v-else-if="fileStore.items.length > 0" class="file-table card">
+          <thead>
+            <tr>
+              <th style="width: 40px">选择</th>
+              <th>名称</th>
+              <th style="width: 100px">类型</th>
+              <th style="width: 100px">大小</th>
+              <th style="width: 140px">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in fileStore.items" :key="item.path" :class="{ 'audio-row': item.is_audio }">
+              <td>
+                <input type="checkbox" :checked="isSelected(item.path)" @change="toggleSelect(item.path)" />
+              </td>
+              <td>
+                <span v-if="item.type === 'dir'" class="dir-name" @click="openDir(item.path)">📁 {{ item.name }}</span>
+                <span v-else>{{ item.name }}</span>
+              </td>
+              <td>{{ item.type === 'dir' ? '文件夹' : item.is_audio ? '音频' : '文件' }}</td>
+              <td>{{ formatBytes(item.size) }}</td>
+              <td>
+                <button v-if="item.type === 'dir'" class="btn btn-secondary btn-small" @click="fileStore.scanPath(item.path)">扫描</button>
+                <button v-if="item.is_audio" class="btn btn-secondary btn-small" @click="playFile(item.path)">播放</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div v-else class="empty card">当前目录为空</div>
+      </div>
     </div>
 
     <div v-else-if="viewMode === 'search'">
@@ -306,6 +315,10 @@ function formatBytes(bytes) {
 .unavailable {
   color: #94a3b8;
   font-size: 12px;
+}
+.no-sources {
+  color: #fca5a5;
+  font-size: 14px;
 }
 .breadcrumb {
   display: flex;

@@ -32,8 +32,8 @@
 ```bash
 cd ~/workspace/multitune
 
-# 创建本地数据与媒体目录
-mkdir -p data media
+# 创建本地数据目录
+mkdir -p data
 
 # 构建并启动（首次构建会编译前端与后端）
 docker compose up -d --build
@@ -42,12 +42,12 @@ docker compose up -d --build
 open http://localhost:8080
 ```
 
-音乐文件请按实际路径挂载到 `./media/` 下，例如：
+音乐文件请按实际路径挂载到容器内任意目录，例如：
 
 ```yaml
 # docker-compose.yml 中 volumes 示例
-- /home/user/music:/app/media/home/music:ro
-- /mnt/usb:/app/media/usb:ro
+- /home/user/music:/music:ro
+- /mnt/usb:/usb:ro
 ```
 
 ### 本地开发运行

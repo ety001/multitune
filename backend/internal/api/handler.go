@@ -30,6 +30,6 @@ func NewHandler(cfg *config.Config, db *db.DB) *Handler {
 		songRepo:      songRepo,
 		playbackRepo:  repository.NewPlaybackRepo(db),
 		deviceLogRepo: repository.NewDeviceLogRepo(db),
-		scanner:       scanner.New(cfg.MediaRoot, songRepo, cfg.ScanFormats),
+		scanner:       scanner.New(songRepo, cfg.ScanFormats),
 	}
 }

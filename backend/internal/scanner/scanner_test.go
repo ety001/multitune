@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ety001/multitune/internal/config"
@@ -30,7 +31,22 @@ func newTestScanner(t *testing.T) (*Scanner, string) {
 		_ = database.Close()
 	})
 	repo := repository.NewSongRepo(database)
-	return New(mediaRoot, repo, cfg.ScanFormats), mediaRoot
+	return New(repo, cfg.ScanFormats), mediaRoot
+}
+
+// expectedSource 返回路径的第一级目录名，与 inferSource 保持一致
+func expectedSource(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "unknown"
+	}
+	parts := strings.Split(abs, string(filepath.Separator))
+	for _, p := range parts {
+		if p != "" {
+			return p
+		}
+	}
+	return "unknown"
 }
 
 func TestScanner_ScanFile(t *testing.T) {
@@ -57,8 +73,9 @@ func TestScanner_ScanFile(t *testing.T) {
 	if len(result.Songs) != 1 {
 		t.Fatalf("songs count = %d, want 1", len(result.Songs))
 	}
-	if result.Songs[0].Source != "home" {
-		t.Errorf("source = %s, want home", result.Songs[0].Source)
+	wantSource := expectedSource(songPath)
+	if result.Songs[0].Source != wantSource {
+		t.Errorf("source = %s, want %s", result.Songs[0].Source, wantSource)
 	}
 	if result.Songs[0].Title != "test" {
 		// ffprobe 不可用时使用文件名作为标题
@@ -166,7 +183,8 @@ func TestScanner_InferSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ScanPath failed: %v", err)
 	}
-	if result.Songs[0].Source != "usb" {
-		t.Errorf("source = %s, want usb", result.Songs[0].Source)
+	wantSource := expectedSource(songPath)
+	if result.Songs[0].Source != wantSource {
+		t.Errorf("source = %s, want %s", result.Songs[0].Source, wantSource)
 	}
 }

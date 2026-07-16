@@ -18,7 +18,6 @@ func newTestHandler(t *testing.T) *Handler {
 	t.Helper()
 	cfg := &config.Config{
 		DataPath:                t.TempDir(),
-		MediaRoot:               t.TempDir(),
 		DatabaseName:            "test.db",
 		MaxIdentities:           20,
 		MaxPlaylistsPerIdentity: 50,

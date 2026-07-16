@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 
 	"github.com/ety001/multitune/internal/fsutil"
 	"github.com/ety001/multitune/internal/model"
@@ -17,15 +18,15 @@ const (
 )
 
 // ListStorageSources GET /api/fs/sources
+// 不再限定媒体根目录，始终返回根目录源，前端可从此进入任意目录。
 func (h *Handler) ListStorageSources(c *gin.Context) {
-	sources, err := fsutil.ListSources(h.cfg.MediaRoot)
-	if err != nil {
-		slog.Error("查询存储源失败", "error", err)
-		c.JSON(http.StatusInternalServerError, model.APIResponse{
-			Code:    9001,
-			Message: "内部错误",
-		})
-		return
+	sources := []map[string]interface{}{
+		{
+			"id":        "root",
+			"name":      "根目录",
+			"path":      "/",
+			"available": true,
+		},
 	}
 
 	c.JSON(http.StatusOK, model.APIResponse{
@@ -39,18 +40,11 @@ func (h *Handler) ListStorageSources(c *gin.Context) {
 }
 
 // ListDirectory GET /api/fs/list
+// path 为空时默认列出根目录；不再做 MEDIA_ROOT 沙箱校验。
 func (h *Handler) ListDirectory(c *gin.Context) {
 	path := c.Query("path")
 	if path == "" {
-		path = h.cfg.MediaRoot
-	}
-
-	if err := fsutil.ValidateMediaPath(h.cfg.MediaRoot, path); err != nil {
-		c.JSON(http.StatusBadRequest, model.APIResponse{
-			Code:    ErrCodePathNotAccessible,
-			Message: err.Error(),
-		})
-		return
+		path = "/"
 	}
 
 	items, err := fsutil.ListDirectory(path)
@@ -70,9 +64,9 @@ func (h *Handler) ListDirectory(c *gin.Context) {
 		return
 	}
 
-	parent := fsutil.ParentPath(h.cfg.MediaRoot, path)
-	if parent == "" {
-		parent = path
+	parent := filepath.Dir(path)
+	if parent == path || parent == "" {
+		parent = "/"
 	}
 
 	c.JSON(http.StatusOK, model.APIResponse{
