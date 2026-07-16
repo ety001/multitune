@@ -230,32 +230,37 @@ html, body {
 .player-volume-inline {
   display: inline-block;
   vertical-align: middle;
-  margin-left: 12px;
+  margin-left: 16px;
   color: #94a3b8;
+}
+
+.player-volume-inline i {
+  font-size: 22px;
+  margin-right: 10px;
 }
 
 .player-volume-inline input[type="range"] {
   display: inline-block;
   vertical-align: middle;
-  width: 80px;
-  height: 6px;
-  border-radius: 3px;
+  width: 140px;
+  height: 10px;
+  border-radius: 5px;
   background: rgba(148, 163, 184, 0.2);
   -webkit-appearance: none;
 }
 
 .player-volume-inline input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: #8b5cf6;
   cursor: pointer;
 }
 
 .player-volume-inline input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: #8b5cf6;
   cursor: pointer;
