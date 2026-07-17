@@ -56,6 +56,14 @@ type PlaybackState struct {
 	UpdatedAt  int64  `json:"updated_at"`
 }
 
+// PlaylistState 歌单播放记忆（每个歌单一条）
+type PlaylistState struct {
+	PlaylistID string `json:"playlist_id"`
+	SongID     string `json:"song_id,omitempty"`
+	Position   int    `json:"position"`
+	UpdatedAt  int64  `json:"updated_at"`
+}
+
 // SongProgress 单曲进度记忆
 type SongProgress struct {
 	IdentityID string `json:"identity_id"`

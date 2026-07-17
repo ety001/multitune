@@ -85,6 +85,57 @@ func (h *Handler) GetPlaybackState(c *gin.Context) {
 	})
 }
 
+// GetPlaylistProgress GET /api/playlists/:id/progress
+func (h *Handler) GetPlaylistProgress(c *gin.Context) {
+	playlistID := c.Param("id")
+
+	// 校验歌单存在
+	playlist, err := h.playlistRepo.GetByID(playlistID)
+	if err != nil {
+		slog.Error("查询歌单失败", "error", err, "id", playlistID)
+		c.JSON(http.StatusInternalServerError, model.APIResponse{
+			Code:    9001,
+			Message: "内部错误",
+		})
+		return
+	}
+	if playlist == nil {
+		c.JSON(http.StatusNotFound, model.APIResponse{
+			Code:    ErrCodePlaylistNotFound,
+			Message: "歌单不存在",
+		})
+		return
+	}
+
+	state, err := h.playbackRepo.GetPlaylistState(playlistID)
+	if err != nil {
+		slog.Error("查询歌单记忆点失败", "error", err, "playlist_id", playlistID)
+		c.JSON(http.StatusInternalServerError, model.APIResponse{
+			Code:    9001,
+			Message: "内部错误",
+		})
+		return
+	}
+	if state == nil {
+		// 没有记忆点时返回默认空状态
+		c.JSON(http.StatusOK, model.APIResponse{
+			Code:    0,
+			Message: "ok",
+			Data: model.PlaylistState{
+				PlaylistID: playlistID,
+				Position:   0,
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, model.APIResponse{
+		Code:    0,
+		Message: "ok",
+		Data:    state,
+	})
+}
+
 // SavePlaybackState POST /api/playback/:identityId
 func (h *Handler) SavePlaybackState(c *gin.Context) {
 	identityID := c.Param("identityId")

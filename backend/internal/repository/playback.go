@@ -112,11 +112,45 @@ func (r *PlaybackRepo) SaveWithProgress(identityID, playlistID, songID string, p
 		}
 	}
 
+	// 同时保存歌单记忆点（仅当 playlistID 非空）
+	if playlistID != "" {
+		_, err = tx.Exec(`
+			INSERT INTO playlist_states (playlist_id, song_id, position, updated_at)
+			VALUES (?, ?, ?, ?)
+			ON CONFLICT(playlist_id) DO UPDATE SET
+				song_id = excluded.song_id,
+				position = excluded.position,
+				updated_at = excluded.updated_at
+		`, playlistID, sg, position, now)
+		if err != nil {
+			return nil, fmt.Errorf("保存歌单记忆点失败: %w", err)
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("提交播放状态事务失败: %w", err)
 	}
 
 	return r.GetByIdentity(identityID)
+}
+
+// GetPlaylistState 获取歌单播放记忆点
+func (r *PlaybackRepo) GetPlaylistState(playlistID string) (*model.PlaylistState, error) {
+	var p model.PlaylistState
+	var songID sql.NullString
+	err := r.db.QueryRow(`
+		SELECT playlist_id, song_id, position, updated_at
+		FROM playlist_states
+		WHERE playlist_id = ?
+	`, playlistID).Scan(&p.PlaylistID, &songID, &p.Position, &p.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("查询歌单记忆点失败: %w", err)
+	}
+	p.SongID = songID.String
+	return &p, nil
 }
 
 // SaveSongProgress 保存单曲进度

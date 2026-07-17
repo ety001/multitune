@@ -75,3 +75,62 @@ func TestPlaybackRepo_SongProgress(t *testing.T) {
 		t.Errorf("position = %d, want 120", pos)
 	}
 }
+
+func TestPlaybackRepo_PlaylistState(t *testing.T) {
+	database := newTestDB(t)
+	repo := NewPlaybackRepo(database)
+	identityRepo := NewIdentityRepo(database)
+	playlistRepo := NewPlaylistRepo(database)
+	songRepo := NewSongRepo(database)
+
+	identity, _ := identityRepo.Create("爸爸", "#6366f1", 0)
+	playlist, _ := playlistRepo.Create(identity.ID, "通勤", 0)
+	song1, _ := songRepo.Upsert("/app/media/home/a.mp3", "home", "A", "", "", 100)
+	song2, _ := songRepo.Upsert("/app/media/home/b.mp3", "home", "B", "", "", 200)
+
+	// 无记录时返回 nil
+	got, err := repo.GetPlaylistState(playlist.ID)
+	if err != nil {
+		t.Fatalf("GetPlaylistState failed: %v", err)
+	}
+	if got != nil {
+		t.Errorf("无记录时应返回 nil, got %+v", got)
+	}
+
+	// SaveWithProgress 写入歌单记忆点
+	if _, err := repo.SaveWithProgress(identity.ID, playlist.ID, song1.Song.ID, 125, "order"); err != nil {
+		t.Fatalf("SaveWithProgress failed: %v", err)
+	}
+	got, err = repo.GetPlaylistState(playlist.ID)
+	if err != nil {
+		t.Fatalf("GetPlaylistState failed: %v", err)
+	}
+	if got == nil {
+		t.Fatal("SaveWithProgress 后应存在歌单记忆点")
+	}
+	if got.SongID != song1.Song.ID {
+		t.Errorf("song_id = %s, want %s", got.SongID, song1.Song.ID)
+	}
+	if got.Position != 125 {
+		t.Errorf("position = %d, want 125", got.Position)
+	}
+
+	// 重复保存更新记忆点
+	if _, err := repo.SaveWithProgress(identity.ID, playlist.ID, song2.Song.ID, 60, "order"); err != nil {
+		t.Fatalf("SaveWithProgress failed: %v", err)
+	}
+	got, _ = repo.GetPlaylistState(playlist.ID)
+	if got.SongID != song2.Song.ID || got.Position != 60 {
+		t.Errorf("更新歌单记忆点失败: %+v", got)
+	}
+
+	// playlistID 为空时不写歌单记忆点
+	playlist2, _ := playlistRepo.Create(identity.ID, "跑步", 0)
+	if _, err := repo.SaveWithProgress(identity.ID, "", song1.Song.ID, 30, "order"); err != nil {
+		t.Fatalf("SaveWithProgress failed: %v", err)
+	}
+	got, _ = repo.GetPlaylistState(playlist2.ID)
+	if got != nil {
+		t.Errorf("playlistID 为空时不应写入歌单记忆点, got %+v", got)
+	}
+}

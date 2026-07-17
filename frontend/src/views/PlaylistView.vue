@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { identityApi } from '../api/client'
+import { identityApi, playbackApi } from '../api/client'
 import { usePlaylistStore } from '../stores/playlist'
 import { usePlayerStore } from '../stores/player'
 
@@ -19,10 +19,13 @@ const showCreateModal = ref(false)
 const editing = ref(null)
 const deleting = ref(null)
 const error = ref(null)
+const lastPlaylistId = ref('')
+const memoryError = ref(null)
 
 onMounted(async () => {
   await loadIdentity()
   await playlistStore.fetchPlaylists(props.id)
+  fetchLastPlayed()
 })
 
 async function loadIdentity() {
@@ -31,6 +34,18 @@ async function loadIdentity() {
     playerStore.setCurrentIdentity(identity.value)
   } catch (e) {
     error.value = e.message
+  }
+}
+
+// 拉取身份记忆点，用于在歌单卡片上标注"上次播放"；失败不阻塞列表
+async function fetchLastPlayed() {
+  memoryError.value = null
+  try {
+    const state = await playbackApi.get(props.id)
+    lastPlaylistId.value = state && state.playlist_id ? state.playlist_id : ''
+  } catch (e) {
+    lastPlaylistId.value = ''
+    memoryError.value = e.message || '记忆点加载失败'
   }
 }
 
@@ -98,6 +113,11 @@ function goPlayer(playlist) {
 
     <div v-if="error" class="error">{{ error }}</div>
 
+    <div v-if="memoryError" class="warn-bar">
+      记忆点加载失败，无法标注上次播放
+      <a class="retry-link" @click="fetchLastPlayed">重试</a>
+    </div>
+
     <div v-if="playlistStore.loading" class="empty">加载中...</div>
     <div v-else-if="playlistStore.playlists.length === 0" class="empty">
       该身份下还没有歌单，去<a @click="router.push('/file-browser')">文件浏览器</a>添加歌曲吧。
@@ -106,7 +126,10 @@ function goPlayer(playlist) {
     <div v-else class="playlist-grid">
       <div v-for="playlist in playlistStore.playlists" :key="playlist.id" class="playlist-card card">
         <div class="playlist-info" @click="goPlayer(playlist)">
-          <div class="playlist-name">{{ playlist.name }}</div>
+          <div class="playlist-name">
+            {{ playlist.name }}
+            <span v-if="playlist.id === lastPlaylistId" class="last-played-badge">上次播放</span>
+          </div>
           <div class="playlist-count">{{ playlist.song_count || 0 }} 首歌曲</div>
         </div>
         <div class="playlist-actions" @click.stop>
@@ -217,6 +240,31 @@ function goPlayer(playlist) {
   font-size: 17px;
   font-weight: 500;
   margin-bottom: 6px;
+}
+.last-played-badge {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: normal;
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.5);
+  border-radius: 6px;
+}
+.warn-bar {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.08);
+  border-radius: 8px;
+}
+.retry-link {
+  color: #818cf8;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-left: 8px;
 }
 .playlist-count {
   font-size: 13px;

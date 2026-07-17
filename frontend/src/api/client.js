@@ -18,17 +18,32 @@ function toQuery(params) {
   return s ? '?' + s : ''
 }
 
+const REQUEST_TIMEOUT = 10000
+
 async function request(method, path, body = null) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
   const options = {
     method,
     headers: {},
+    signal: controller.signal,
   }
   if (body !== undefined && body !== null) {
     options.headers['Content-Type'] = 'application/json'
     options.body = JSON.stringify(body)
   }
 
-  const res = await fetch(API_BASE + path, options)
+  let res
+  try {
+    res = await fetch(API_BASE + path, options)
+  } catch (e) {
+    if (e && e.name === 'AbortError') {
+      throw new APIError('请求超时，请稍后重试', 'TIMEOUT')
+    }
+    throw new APIError('网络错误，请稍后重试', 'NETWORK')
+  } finally {
+    clearTimeout(timer)
+  }
   const data = await res.json()
   if (data.code !== 0) {
     throw new APIError(data.message || '请求失败', data.code)
@@ -83,6 +98,7 @@ export const scanApi = {
 export const playbackApi = {
   get: (identityId) => api.get('/playback/' + identityId),
   save: (identityId, body) => api.post('/playback/' + identityId, body),
+  getPlaylistProgress: (playlistId) => api.get('/playlists/' + playlistId + '/progress'),
 }
 
 export { APIError }

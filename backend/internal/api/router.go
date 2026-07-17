@@ -63,6 +63,7 @@ func (h *Handler) SetupRouter() *gin.Engine {
 		// 播放状态 API
 		api.GET("/playback/:identityId", h.GetPlaybackState)
 		api.POST("/playback/:identityId", h.SavePlaybackState)
+		api.GET("/playlists/:id/progress", h.GetPlaylistProgress)
 	}
 
 	// 静态文件服务（避免根路径通配与 /api 冲突，分别挂载子目录）

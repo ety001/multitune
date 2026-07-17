@@ -12,6 +12,7 @@
       url: MultiTune.apiBase + path,
       type: 'GET',
       dataType: 'json',
+      timeout: 8000,
       success: function(resp) {
         if (resp && resp.code === 0) {
           callback(null, resp.data);
@@ -20,7 +21,11 @@
         }
       },
       error: function(xhr, status, err) {
-        callback(err || status || '网络错误', null);
+        if (status === 'timeout') {
+          callback('请求超时，请重试', null);
+        } else {
+          callback(err || status || '网络错误', null);
+        }
       }
     });
   };
@@ -33,6 +38,7 @@
       contentType: 'application/json',
       data: JSON.stringify(data),
       dataType: 'json',
+      timeout: 8000,
       success: function(resp) {
         if (resp && resp.code === 0) {
           callback(null, resp.data);
@@ -41,7 +47,11 @@
         }
       },
       error: function(xhr, status, err) {
-        callback(err || status || '网络错误', null);
+        if (status === 'timeout') {
+          callback('请求超时，请重试', null);
+        } else {
+          callback(err || status || '网络错误', null);
+        }
       }
     });
   };

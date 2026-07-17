@@ -13,6 +13,8 @@
     isSeeking: false,
     hasUserInteracted: false,
     consecutiveErrors: 0,
+    loading: false,
+    loadSeq: 0,
 
     init: function(options) {
       this.options = options;
@@ -34,38 +36,106 @@
         return;
       }
 
-      var playlistLoaded = false;
-      var stateLoaded = false;
-      var playlistData = null;
-      var stateData = null;
+      if (this.loading) {
+        return;
+      }
+      this.loading = true;
+      this.loadSeq += 1;
+      var seq = this.loadSeq;
 
-      function tryInit() {
-        if (playlistLoaded && stateLoaded) {
-          self.initPlayer(playlistData, stateData);
+      // 清理旧的自动保存定时器，避免切换歌单后叠加
+      if (this.saveTimer) {
+        clearInterval(this.saveTimer);
+        this.saveTimer = null;
+      }
+
+      this.hideLoadError();
+      $(this.options.titleEl).text('加载中...');
+      $(this.options.artistEl).text('-');
+
+      var playlistData = null;
+      var progressData = null;
+      var stateData = null;
+      var doneCount = 0;
+      var failed = false;
+
+      function onSettled() {
+        doneCount += 1;
+        if (doneCount < 3) {
+          return;
+        }
+        if (seq !== self.loadSeq) {
+          return; // 已被更新的加载取代
+        }
+        self.loading = false;
+        if (!failed) {
+          self.initPlayer(playlistData, progressData, stateData);
         }
       }
 
-      MultiTune.get('/playlists/' + encodeURIComponent(playlistId), function(err, data) {
-        playlistLoaded = true;
-        if (err) {
-          $(self.options.playlistNameEl).text('加载失败');
-          $(self.options.titleEl).text('歌单加载失败');
+      function onFail(message) {
+        if (seq !== self.loadSeq || failed) {
           return;
         }
-        playlistData = data;
-        tryInit();
+        failed = true;
+        self.loading = false;
+        self.showLoadError(message);
+      }
+
+      MultiTune.get('/playlists/' + encodeURIComponent(playlistId), function(err, data) {
+        if (seq !== self.loadSeq) {
+          return;
+        }
+        if (err) {
+          onFail('歌单加载失败：' + err);
+        } else {
+          playlistData = data;
+        }
+        onSettled();
       });
 
+      // 歌单记忆点：上次播放到哪首歌、播到第几秒
+      MultiTune.get('/playlists/' + encodeURIComponent(playlistId) + '/progress', function(err, data) {
+        if (seq !== self.loadSeq) {
+          return;
+        }
+        if (err) {
+          onFail('记忆点加载失败：' + err);
+        } else {
+          progressData = data;
+        }
+        onSettled();
+      });
+
+      // 身份记忆点仅用于恢复播放模式，失败时静默降级为默认顺序播放
       MultiTune.get('/playback/' + encodeURIComponent(identityId), function(err, data) {
-        stateLoaded = true;
+        if (seq !== self.loadSeq) {
+          return;
+        }
         if (!err && data) {
           stateData = data;
         }
-        tryInit();
+        onSettled();
       });
     },
 
-    initPlayer: function(playlist, state) {
+    showLoadError: function(message) {
+      if (this.options.loadErrorText) {
+        $(this.options.loadErrorText).text(message || '加载失败');
+      }
+      if (this.options.loadErrorBar) {
+        $(this.options.loadErrorBar).show();
+      }
+      $(this.options.titleEl).text('加载失败');
+    },
+
+    hideLoadError: function() {
+      if (this.options.loadErrorBar) {
+        $(this.options.loadErrorBar).hide();
+      }
+    },
+
+    initPlayer: function(playlist, progress, state) {
       var self = this;
       this.playlist = playlist || {};
       this.songs = (playlist && playlist.songs) ? playlist.songs : [];
@@ -78,20 +148,20 @@
         return;
       }
 
-      // 确定起始歌曲
+      // 播放模式来自身份记忆点
+      if (state && state.mode && (state.mode === 'order' || state.mode === 'random' || state.mode === 'single-loop')) {
+        this.mode = state.mode;
+      }
+
+      // 起始点来自歌单记忆点：命中则续播，否则从第一首开始
       var startIndex = 0;
       var startPosition = 0;
-      if (state) {
-        if (state.mode && (state.mode === 'order' || state.mode === 'random' || state.mode === 'single-loop')) {
-          this.mode = state.mode;
-        }
-        if (state.song_id) {
-          for (var i = 0; i < this.songs.length; i++) {
-            if (this.songs[i].id === state.song_id) {
-              startIndex = i;
-              startPosition = state.position || 0;
-              break;
-            }
+      if (progress && progress.song_id) {
+        for (var i = 0; i < this.songs.length; i++) {
+          if (this.songs[i].id === progress.song_id) {
+            startIndex = i;
+            startPosition = progress.position || 0;
+            break;
           }
         }
       }
@@ -101,13 +171,13 @@
       this.consecutiveErrors = 0;
       this.playSong(startIndex, false, startPosition);
 
-      // 自动保存播放状态（每 5 秒）
+      // 自动保存播放状态（每 10 秒）
       this.saveTimer = setInterval(function() {
         self.saveState(false);
-      }, 5000);
+      }, 10000);
 
       // 页面离开前保存
-      $(window).on('beforeunload', function() {
+      $(window).off('beforeunload.multitune').on('beforeunload.multitune', function() {
         self.saveState(true);
       });
     },
@@ -151,17 +221,30 @@
 
       if (this.options.switchIdentityBtn) {
         $(this.options.switchIdentityBtn).on('click', function() {
+          if (self.loading) {
+            return;
+          }
           self.openIdentityModal();
         });
       }
 
       if (this.options.switchPlaylistBtn) {
         $(this.options.switchPlaylistBtn).on('click', function() {
+          if (self.loading) {
+            return;
+          }
           if (self.options.identityId) {
             self.openPlaylistModal(self.options.identityId);
           } else {
             self.openIdentityModal();
           }
+        });
+      }
+
+      if (this.options.retryLoadBtn) {
+        $(this.options.retryLoadBtn).on('click', function() {
+          self.hasUserInteracted = true;
+          self.loadData();
         });
       }
 
@@ -271,7 +354,7 @@
         this.updatePlayBtn(false);
       }
 
-      this.saveState(true);
+      this.saveState(false);
     },
 
     togglePlay: function() {
@@ -579,12 +662,49 @@
       var $list = $(this.options.playlistListEl);
       $list.html('<div class="loading">正在加载歌单...</div>');
 
-      MultiTune.get('/identities/' + encodeURIComponent(identityId) + '/playlists?limit=100', function(err, data) {
-        if (err) {
-          MultiTune.showError($list, '加载歌单失败：' + err);
+      var playlistsData = null;
+      var stateData = null;
+      var stateFailed = false;
+      var failed = false;
+      var settled = 0;
+
+      function tryRender() {
+        if (failed || settled < 2) {
           return;
         }
-        self.renderPlaylistList(data && data.items ? data.items : []);
+        self.renderPlaylistList(
+          playlistsData && playlistsData.items ? playlistsData.items : [],
+          stateData,
+          stateFailed,
+          identityId
+        );
+      }
+
+      MultiTune.get('/identities/' + encodeURIComponent(identityId) + '/playlists?limit=100', function(err, data) {
+        settled += 1;
+        if (err) {
+          failed = true;
+          $list.html('<div class="error">加载歌单失败：' + escapeHtml(err) + '</div>');
+          var $retry = $('<button type="button" class="retry-btn retry-btn-block">重试</button>');
+          $retry.on('click', function() {
+            self.openPlaylistModal(identityId);
+          });
+          $list.append($retry);
+          return;
+        }
+        playlistsData = data;
+        tryRender();
+      });
+
+      // 身份记忆点：用于在歌单列表中标注"上次播放"，失败不阻塞列表
+      MultiTune.get('/playback/' + encodeURIComponent(identityId), function(err, data) {
+        settled += 1;
+        if (err) {
+          stateFailed = true;
+        } else {
+          stateData = data;
+        }
+        tryRender();
       });
     },
 
@@ -592,7 +712,7 @@
       this.closeModal(this.options.playlistModal);
     },
 
-    renderPlaylistList: function(items) {
+    renderPlaylistList: function(items, state, stateFailed, identityId) {
       var self = this;
       var $list = $(this.options.playlistListEl);
       if (!items || items.length === 0) {
@@ -600,20 +720,39 @@
         return;
       }
 
+      var lastPlaylistId = (state && state.playlist_id) ? state.playlist_id : '';
+
       var html = '';
+      if (stateFailed) {
+        html += '<div class="modal-warn-bar">记忆点加载失败，无法标注上次播放 <a class="retry-link" id="retryPlaylistState">重试</a></div>';
+      }
       for (var i = 0; i < items.length; i++) {
         var pl = items[i];
         var countText = (pl.song_count || 0) + ' 首歌曲';
-        html += '<div class="playlist-select-item" data-id="' + escapeHtml(pl.id) + '">';
-        html += '<div class="playlist-select-name">' + escapeHtml(pl.name || '未命名歌单') + '</div>';
+        var isLast = lastPlaylistId && pl.id === lastPlaylistId;
+        html += '<div class="playlist-select-item' + (isLast ? ' last-played' : '') + '" data-id="' + escapeHtml(pl.id) + '">';
+        html += '<div class="playlist-select-name">' + escapeHtml(pl.name || '未命名歌单');
+        if (isLast) {
+          html += '<span class="last-played-badge">上次播放</span>';
+        }
+        html += '</div>';
         html += '<div class="playlist-select-meta">' + countText + '</div>';
         html += '</div>';
       }
       $list.html(html);
 
+      $list.find('#retryPlaylistState').on('click', function() {
+        self.openPlaylistModal(identityId);
+      });
+
       $list.find('.playlist-select-item').on('click', function() {
+        if (self.loading) {
+          return;
+        }
         var playlistId = $(this).attr('data-id');
+        $(this).addClass('disabled');
         self.options.playlistId = playlistId;
+        self.hasUserInteracted = true;
         self.closePlaylistModal();
         self.updateUrl();
         self.loadData();
@@ -657,7 +796,9 @@
       });
     },
 
-    saveState: function(force) {
+    // includeMode 为 true 时附带播放模式（模式切换、页面离开等关键节点）；
+    // 周期上报只发 3 个字段以压缩体积
+    saveState: function(includeMode) {
       var audio = $(this.options.audioEl)[0];
       if (!this.songs.length || !this.songs[this.currentIndex]) {
         return;
@@ -669,9 +810,11 @@
       var data = {
         playlist_id: this.options.playlistId,
         song_id: songId,
-        position: position,
-        mode: this.mode
+        position: position
       };
+      if (includeMode) {
+        data.mode = this.mode;
+      }
 
       // 静默保存，不处理失败
       MultiTune.post('/playback/' + encodeURIComponent(this.options.identityId), data, function() {

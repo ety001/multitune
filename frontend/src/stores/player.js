@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { playbackApi, playlistApi } from '../api/client'
+import { playbackApi } from '../api/client'
 
 const VOLUME_KEY = 'multitune_volume'
 
@@ -25,6 +25,7 @@ export const usePlayerStore = defineStore('player', () => {
   const mode = ref('order')
   const volume = ref(1)
   const loading = ref(false)
+  const resuming = ref(false)
   const error = ref(null)
 
   const audio = new Audio()
@@ -65,27 +66,68 @@ export const usePlayerStore = defineStore('player', () => {
     currentPlaylist.value = playlist
   }
 
-  async function loadPlaybackState() {
-    if (!currentIdentity.value) return
+  // 进入歌单时恢复播放：歌单记忆点决定起始曲目和位置，身份记忆点决定播放模式
+  let resumeSeq = 0
+  async function resumePlaylist(playlist, identity) {
+    if (!playlist) return
+    if (identity) currentIdentity.value = identity
+    currentPlaylist.value = playlist
+    resumeSeq += 1
+    const seq = resumeSeq
+    resuming.value = true
+    error.value = null
     try {
-      const state = await playbackApi.get(currentIdentity.value.id)
-      if (state && state.mode) {
+      const results = await Promise.allSettled([
+        playbackApi.getPlaylistProgress(playlist.id),
+        currentIdentity.value ? playbackApi.get(currentIdentity.value.id) : Promise.resolve(null),
+      ])
+      if (seq !== resumeSeq) return // 已被新的恢复取代
+
+      if (results[0].status === 'rejected') {
+        // 歌单记忆点获取失败：抛出由 UI 层展示错误和重试入口
+        throw results[0].reason
+      }
+      const progress = results[0].value
+      const state = results[1].status === 'fulfilled' ? results[1].value : null
+
+      if (state && state.mode && ['order', 'random', 'single-loop'].includes(state.mode)) {
         mode.value = state.mode
       }
-      if (state && state.playlist_id) {
-        const playlist = await playlistApi.get(state.playlist_id, { limit: 200 })
-        currentPlaylist.value = playlist
-        if (state.song_id) {
-          const song = playlist.songs.find((s) => s.id === state.song_id)
-          if (song) {
-            currentSong.value = song
-            audio.src = '/api/songs/' + song.id + '/stream'
-            audio.currentTime = state.position || 0
-            currentTime.value = audio.currentTime
-          }
+
+      const songs = playlist.songs || []
+      if (songs.length === 0) return
+
+      let startSong = songs[0]
+      let startPosition = 0
+      if (progress && progress.song_id) {
+        const found = songs.find((s) => s.id === progress.song_id)
+        if (found) {
+          startSong = found
+          startPosition = progress.position || 0
         }
       }
+
+      currentSong.value = startSong
+      audio.src = '/api/songs/' + startSong.id + '/stream'
+      audio.currentTime = startPosition
+      currentTime.value = startPosition
+      await tryPlay()
+    } finally {
+      if (seq === resumeSeq) {
+        resuming.value = false
+      }
+    }
+  }
+
+  async function tryPlay() {
+    try {
+      await audio.play()
+      isPlaying.value = true
+      startAutoSave()
     } catch (e) {
+      isPlaying.value = false
+      // 浏览器自动播放限制：保持就绪暂停态，不报错
+      if (e && e.name === 'NotAllowedError') return
       error.value = e.message
     }
   }
@@ -105,7 +147,10 @@ export const usePlayerStore = defineStore('player', () => {
       isPlaying.value = true
       startAutoSave()
     } catch (e) {
-      error.value = e.message
+      // 浏览器自动播放限制时保持暂停就绪，不作为错误展示
+      if (!(e && e.name === 'NotAllowedError')) {
+        error.value = e.message
+      }
       isPlaying.value = false
     } finally {
       loading.value = false
@@ -195,15 +240,20 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
-  async function savePlaybackState() {
+  // includeMode 为 true 时附带播放模式（模式切换、暂停等关键节点）；
+  // 周期上报只发 3 个字段以压缩体积
+  async function savePlaybackState(includeMode = true) {
     if (!currentIdentity.value) return
+    const body = {
+      playlist_id: currentPlaylist.value ? currentPlaylist.value.id : '',
+      song_id: currentSong.value ? currentSong.value.id : '',
+      position: Math.floor(currentTime.value),
+    }
+    if (includeMode) {
+      body.mode = mode.value
+    }
     try {
-      await playbackApi.save(currentIdentity.value.id, {
-        playlist_id: currentPlaylist.value ? currentPlaylist.value.id : '',
-        song_id: currentSong.value ? currentSong.value.id : '',
-        position: Math.floor(currentTime.value),
-        mode: mode.value,
-      })
+      await playbackApi.save(currentIdentity.value.id, body)
     } catch (e) {
       // 播放状态保存失败不阻断播放
       console.error('保存播放状态失败', e)
@@ -214,8 +264,8 @@ export const usePlayerStore = defineStore('player', () => {
   function startAutoSave() {
     stopAutoSave()
     saveTimer = setInterval(() => {
-      if (isPlaying.value) savePlaybackState()
-    }, 5000)
+      if (isPlaying.value) savePlaybackState(false)
+    }, 10000)
   }
   function stopAutoSave() {
     if (saveTimer) {
@@ -255,6 +305,7 @@ export const usePlayerStore = defineStore('player', () => {
     mode,
     volume,
     loading,
+    resuming,
     error,
     currentTimeFormatted,
     durationFormatted,
@@ -262,7 +313,7 @@ export const usePlayerStore = defineStore('player', () => {
     setMode,
     setCurrentIdentity,
     setCurrentPlaylist,
-    loadPlaybackState,
+    resumePlaylist,
     playSong,
     togglePlay,
     pause,

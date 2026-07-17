@@ -292,3 +292,127 @@ func TestHandler_SavePlaybackState_NegativePosition(t *testing.T) {
 		t.Errorf("状态码错误: got %d, want %d", w.Code, http.StatusBadRequest)
 	}
 }
+
+func TestHandler_GetPlaylistProgress_NotFound(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/playlists/nonexistent/progress", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("状态码错误: got %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandler_GetPlaylistProgress_DefaultEmpty(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	identity := createIdentityForTest(t, r, "爸爸")
+	playlist := createPlaylistForTest(t, r, identity.ID, "通勤")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/playlists/"+playlist.ID+"/progress", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("状态码错误: got %d, body: %s", w.Code, w.Body.String())
+	}
+
+	var resp model.APIResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	data, _ := json.Marshal(resp.Data)
+	var state model.PlaylistState
+	_ = json.Unmarshal(data, &state)
+
+	if state.PlaylistID != playlist.ID {
+		t.Errorf("playlist_id = %s, want %s", state.PlaylistID, playlist.ID)
+	}
+	if state.SongID != "" {
+		t.Errorf("默认 song_id = %s, want 空", state.SongID)
+	}
+	if state.Position != 0 {
+		t.Errorf("默认 position = %d, want 0", state.Position)
+	}
+}
+
+func TestHandler_GetPlaylistProgress_AfterSave(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	identity := createIdentityForTest(t, r, "爸爸")
+	playlist := createPlaylistForTest(t, r, identity.ID, "通勤")
+	song := createSongForTest(t, h, r, "home", "song.mp3")
+
+	// 保存播放状态
+	body := map[string]interface{}{
+		"playlist_id": playlist.ID,
+		"song_id":     song.ID,
+		"position":    125,
+		"mode":        "order",
+	}
+	jsonBody, _ := json.Marshal(body)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/playback/"+identity.ID, bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("保存状态码错误: got %d, body: %s", w.Code, w.Body.String())
+	}
+
+	// 读取歌单记忆点
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/playlists/"+playlist.ID+"/progress", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("状态码错误: got %d, body: %s", w.Code, w.Body.String())
+	}
+
+	var resp model.APIResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	data, _ := json.Marshal(resp.Data)
+	var state model.PlaylistState
+	_ = json.Unmarshal(data, &state)
+
+	if state.SongID != song.ID {
+		t.Errorf("song_id = %s, want %s", state.SongID, song.ID)
+	}
+	if state.Position != 125 {
+		t.Errorf("position = %d, want 125", state.Position)
+	}
+
+	// 只发 position 部分更新，歌单记忆点应保持正确的歌并更新位置
+	body = map[string]interface{}{
+		"position": 200,
+	}
+	jsonBody, _ = json.Marshal(body)
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("POST", "/api/playback/"+identity.ID, bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("部分更新状态码错误: got %d, body: %s", w.Code, w.Body.String())
+	}
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/playlists/"+playlist.ID+"/progress", nil)
+	r.ServeHTTP(w, req)
+
+	var resp2 model.APIResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp2)
+	data, _ = json.Marshal(resp2.Data)
+	var state2 model.PlaylistState
+	_ = json.Unmarshal(data, &state2)
+
+	if state2.SongID != song.ID {
+		t.Errorf("部分更新后 song_id = %s, want %s", state2.SongID, song.ID)
+	}
+	if state2.Position != 200 {
+		t.Errorf("部分更新后 position = %d, want 200", state2.Position)
+	}
+}

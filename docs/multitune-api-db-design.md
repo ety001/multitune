@@ -145,6 +145,16 @@ CREATE TABLE song_progress (
     FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
 );
 
+-- 歌单播放记忆表（每个歌单一条：上次播放到哪首歌、播到第几秒）
+CREATE TABLE playlist_states (
+    playlist_id TEXT PRIMARY KEY,
+    song_id TEXT,
+    position INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+    FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE SET NULL
+);
+
 -- 索引
 CREATE INDEX idx_playlists_identity_id ON playlists(identity_id);
 CREATE INDEX idx_playlist_songs_playlist_id ON playlist_songs(playlist_id);
@@ -225,14 +235,24 @@ CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_
 
 > 用途：满足 PRD P0 需求"记住每首歌上次播放到的位置，再次播放时续播"。切歌时将当前歌曲 position 写入此表；再次播放某首歌时从此表读取上次位置。
 
+#### playlist_states
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| playlist_id | TEXT | 歌单 ID，主键 |
+| song_id | TEXT | 该歌单上次播放的歌曲 ID |
+| position | INTEGER | 该歌曲上次播放到的位置（秒） |
+| updated_at | INTEGER | 更新时间戳 |
+
+> 用途：歌单级记忆点。从歌单 A 切换到歌单 B 时，读取 B 的记忆点：有则从上次那首歌的播放位置续播，无则从第一首开始。保存播放状态（`POST /api/playback/:identityId`）时在同一事务内 upsert 此表。通过 `GET /api/playlists/:id/progress` 读取。
+
 ### 2.3 数据约束
 
 - 一个身份下最多 N 个歌单（默认 50，可通过配置调整）。
 - 一个歌单中最多 N 首歌曲（默认 1000）。
 - `songs.path` 唯一，避免同一文件重复入库。
 - 删除身份时，级联删除其歌单、歌单-歌曲关联、播放状态、单曲进度。
-- 删除歌单时，只删除关联，不删除 `songs` 表记录。
-- 删除歌曲时，级联删除歌单-歌曲关联，播放状态中的 song_id 设为 NULL；`song_progress` 中对应记录级联删除。
+- 删除歌单时，只删除关联和歌单记忆点（`playlist_states` 级联删除），不删除 `songs` 表记录。
+- 删除歌曲时，级联删除歌单-歌曲关联，播放状态与歌单记忆点中的 song_id 设为 NULL；`song_progress` 中对应记录级联删除。
 - `identities.is_default` 受 partial unique index 约束，全局最多一条 `is_default=1`。
 - `playback_states.mode` 受 CHECK 约束，仅允许 `order` / `random` / `single-loop`。
 - `identities.is_default` 受 CHECK 约束，仅允许 `0` / `1`。
@@ -724,8 +744,30 @@ CREATE UNIQUE INDEX idx_one_default_identity ON identities(is_default) WHERE is_
 
 **说明**：
 - 字段均可选，未传入字段保持原值。
-- 前端播放过程中定时（如每 5 秒）调用该接口保存进度。
+- 前端播放过程中定时（每 10 秒）调用该接口保存进度；周期上报只发 `playlist_id` / `song_id` / `position` 三个字段以压缩体积。
 - 切换歌曲、暂停时也应保存一次。
+- 保存时在同一事务内 upsert `playlist_states`（歌单记忆点）。
+
+#### GET /api/playlists/:id/progress
+获取歌单记忆点（上次播放到哪首歌、播到第几秒）。
+
+**响应**：
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "playlist_id": "pl-1",
+    "song_id": "song-1",
+    "position": 125,
+    "updated_at": 1720934400
+  }
+}
+```
+
+**说明**：
+- 歌单不存在返回 404（错误码 2001）。
+- 无记忆点时返回默认空状态 `{playlist_id, position: 0}`（无 song_id），前端据此从第一首开始播放。
 
 ---
 
@@ -926,6 +968,7 @@ xhr.send();
 - `GET /api/identities`
 - `GET /api/identities/:id/playlists`
 - `GET /api/playlists/:id`
+- `GET /api/playlists/:id/progress`
 - `GET /api/playback/:identityId`
 - `POST /api/playback/:identityId`
 - `GET /api/songs/:id/stream`

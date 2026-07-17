@@ -15,6 +15,7 @@ const playerStore = usePlayerStore()
 
 const identity = ref(null)
 const error = ref(null)
+const resumeError = ref(null)
 const progressRef = ref(null)
 
 onMounted(async () => {
@@ -27,15 +28,29 @@ watch(() => props.id, async () => {
 
 async function loadPlaylist() {
   try {
+    error.value = null
+    resumeError.value = null
     await playlistStore.fetchPlaylistDetail(props.id, 200, 0)
     if (playlistStore.currentPlaylist) {
       playerStore.setCurrentPlaylist(playlistStore.currentPlaylist)
       const identityData = await identityApi.get(playlistStore.currentPlaylist.identity_id)
       identity.value = identityData
       playerStore.setCurrentIdentity(identityData)
+      await resumePlayback()
     }
   } catch (e) {
     error.value = e.message
+  }
+}
+
+// 从歌单记忆点恢复播放；失败时展示错误和重试入口，不重载整页
+async function resumePlayback() {
+  if (!playlistStore.currentPlaylist) return
+  resumeError.value = null
+  try {
+    await playerStore.resumePlaylist(playlistStore.currentPlaylist, identity.value)
+  } catch (e) {
+    resumeError.value = e.message || '记忆点加载失败'
   }
 }
 
@@ -44,6 +59,7 @@ function isActiveSong(song) {
 }
 
 function playSong(song) {
+  if (playerStore.resuming) return
   playerStore.playSong(song, playlistStore.currentPlaylist, identity.value)
 }
 
@@ -95,7 +111,13 @@ function modeIcon(mode) {
     <div v-if="error" class="error">{{ error }}</div>
     <div v-else-if="playlistStore.loading" class="empty">加载中...</div>
 
-    <div v-else-if="playlistStore.currentPlaylist" class="player-layout">
+    <template v-else-if="playlistStore.currentPlaylist">
+      <div v-if="playerStore.resuming" class="resume-hint">正在恢复上次播放…</div>
+      <div v-if="resumeError" class="error resume-error">
+        <span>{{ resumeError }}</span>
+        <button class="btn btn-secondary btn-small" @click="resumePlayback">重试</button>
+      </div>
+    <div class="player-layout" :class="{ disabled: playerStore.resuming }">
       <div class="playlist-panel card">
         <div v-if="playlistStore.currentPlaylist.songs.length === 0" class="empty">歌单为空，先去添加歌曲吧。</div>
         <table v-else class="song-table">
@@ -161,6 +183,7 @@ function modeIcon(mode) {
         <div v-if="playerStore.error" class="error">{{ playerStore.error }}</div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -185,6 +208,22 @@ function modeIcon(mode) {
   grid-template-columns: minmax(0, 1fr) 380px;
   gap: 24px;
   align-items: flex-start;
+}
+.player-layout.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.resume-hint {
+  margin-bottom: 12px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+.resume-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 .playlist-panel {
   min-height: 300px;
