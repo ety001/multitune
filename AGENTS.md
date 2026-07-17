@@ -165,7 +165,7 @@ if err := h.repo.UpdateSongOrder(...); err != nil {
 
 ### 6. 不用字符串比较判断错误类型
 
-不要用 `err.Error() == "xxx"` 做逻辑分支。用 sentinel error 或自定义错误类型 + `errors.Is` / `errors.As`。
+不要用 `err.Error() == "xxx"` 做逻辑分支。用 sentinel error 或自定义错误类型 + `errors.Is` / `errors.As`。标准库错误同理（如 `io.EOF`）。
 
 错误示例（禁止）：
 
@@ -173,6 +173,9 @@ if err := h.repo.UpdateSongOrder(...); err != nil {
 if err.Error() == "路径不存在" {
     c.JSON(http.StatusBadRequest, ...)
 }
+
+_, err = f.Readdirnames(1)
+return err == nil || err.Error() == "EOF"
 ```
 
 正确示例：
@@ -181,11 +184,35 @@ if err.Error() == "路径不存在" {
 if errors.Is(err, fsutil.ErrPathNotFound) {
     c.JSON(http.StatusBadRequest, ...)
 }
+
+_, err = f.Readdirnames(1)
+return err == nil || errors.Is(err, io.EOF)
 ```
 
 ### 7. Upsert 用原子操作
 
 不要先 SELECT 再判断 INSERT 或 UPDATE（read-modify-write 竞态）。用 `INSERT OR IGNORE` + 后续 UPDATE，或 `INSERT ... ON CONFLICT DO UPDATE`。
+
+**部分字段合并（partial upsert）也必须原子**：当"未传入的字段保留数据库现有值"时，不要在 handler 里先 GET 读现有值、内存合并、再全量 upsert——两个客户端并发部分更新会互相覆盖。把合并逻辑放进单条 SQL，用 `CASE WHEN` 按"字段是否传入"的布尔参数选择新值或旧值：
+
+```go
+// 指针参数为 nil 表示未传入、保留现有值
+_, err = tx.Exec(`
+    INSERT INTO playback_states (identity_id, playlist_id, song_id, position, mode, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(identity_id) DO UPDATE SET
+        playlist_id = CASE WHEN ? THEN excluded.playlist_id ELSE playback_states.playlist_id END,
+        song_id     = CASE WHEN ? THEN excluded.song_id     ELSE playback_states.song_id     END,
+        position    = CASE WHEN ? THEN excluded.position    ELSE playback_states.position    END,
+        mode        = CASE WHEN ? THEN excluded.mode        ELSE playback_states.mode        END,
+        updated_at  = excluded.updated_at
+`, identityID, pl, sg, pos, md, now,
+    playlistID != nil, songID != nil, position != nil, mode != nil)
+```
+
+派生表（如从播放状态同步单曲进度、歌单记忆点）要在同一事务内、从合并后的最终行 `INSERT ... SELECT ... FROM 主表 WHERE ...` 派生，不要用 handler 内存里的合并值——保证多表一致。
+
+handler 层读现有值仅允许用于**校验**（如判断歌曲是否属于生效歌单），不允许把读到的值再写回去。
 
 ### 8. N+1 查询禁止
 
@@ -218,6 +245,14 @@ if count != len(ids) {
 ### 10. Update 不应修改非目标字段
 
 `UPDATE` 语句只修改请求中传入的字段。不要顺带更新 `created_at` 等非目标字段。
+
+### 11. 校验跨资源关联，不只校验单个资源存在
+
+写入涉及多个资源关联的数据时，除了逐个校验资源存在，还要校验它们的**关联关系**成立。只查 `GetByID` 不为 nil 是不够的。
+
+例：保存播放状态时同时传入 `playlist_id` 和 `song_id`，除了校验歌单存在、歌曲存在，还必须校验**歌曲在该歌单中**，否则歌单记忆点会存入不属于该歌单的歌，前端续播时找不到。关系不成立返回 400 + 业务错误码（如 `ErrCodeSongNotInPlaylist`）。
+
+关联校验用单条 SQL（如 `SELECT COUNT(*) FROM playlist_songs WHERE playlist_id = ? AND song_id = ?`），遵守规则 8 不做 N+1。部分更新场景下，校验对象是"合并后的生效值"（传入值与数据库现有值合并的结果），但该读取仅用于校验，写入仍走规则 7 的原子路径。
 
 ## 简化版前端开发规范
 
@@ -305,8 +340,10 @@ if count != len(ids) {
 - [ ] 所有 500 分支有 `slog.Error`
 - [ ] 所有 List 方法用 `make([]T, 0)`
 - [ ] Update 操作无 read-modify-write
+- [ ] 部分字段合并 upsert 用 `CASE WHEN` 原子完成，未在 handler 内存合并后写回
 - [ ] Delete 操作区分存在/不存在
-- [ ] 业务错误用 sentinel error + `errors.Is`
+- [ ] 业务错误用 sentinel error + `errors.Is`（含标准库错误如 `io.EOF`，无 `err.Error() ==` 比较）
 - [ ] 无 N+1 查询
+- [ ] 跨资源写入校验了关联关系（不只校验单个资源存在）
 - [ ] 测试覆盖成功 + 错误路径
 - [ ] PR Body 使用 `--body-file` 写入，无 `\n` 字面量换行，并已用 `gh pr view` 检查
