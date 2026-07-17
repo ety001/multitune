@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFileBrowserStore } from '../stores/fileBrowser'
 import { useIdentityStore } from '../stores/identity'
@@ -140,6 +140,33 @@ function isSelected(path) {
   return selectedPaths.value.indexOf(path) >= 0
 }
 
+// 表头全选框：当前页所有条目都已勾选时为 true；
+// 用户取消任意一项后自动变回未勾选
+const allSelected = computed(() => {
+  const items = fileStore.items
+  if (!items || items.length === 0) return false
+  for (const item of items) {
+    if (selectedPaths.value.indexOf(item.path) < 0) return false
+  }
+  return true
+})
+
+function toggleSelectAll(e) {
+  const checked = e.target.checked
+  if (checked) {
+    // 勾选当前页全部条目
+    for (const item of fileStore.items) {
+      if (selectedPaths.value.indexOf(item.path) < 0) {
+        selectedPaths.value.push(item.path)
+      }
+    }
+  } else {
+    // 仅取消当前页条目，保留其他目录的勾选
+    const pagePaths = new Set(fileStore.items.map((item) => item.path))
+    selectedPaths.value = selectedPaths.value.filter((p) => !pagePaths.has(p))
+  }
+}
+
 async function openDir(path) {
   selectedPaths.value = []
   await fileStore.listDirectory(path)
@@ -263,7 +290,9 @@ function formatBytes(bytes) {
         <table v-else-if="fileStore.items.length > 0" class="file-table card">
           <thead>
             <tr>
-              <th style="width: 40px">选择</th>
+              <th class="select-cell">
+                <label><input type="checkbox" :checked="allSelected" @change="toggleSelectAll" /></label>
+              </th>
               <th>名称</th>
               <th style="width: 100px">类型</th>
               <th style="width: 100px">大小</th>
