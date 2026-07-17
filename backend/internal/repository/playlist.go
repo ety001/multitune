@@ -160,6 +160,18 @@ func (r *PlaylistRepo) Delete(id string) (bool, error) {
 	return rows > 0, nil
 }
 
+// ContainsSong 检查歌曲是否在歌单中
+func (r *PlaylistRepo) ContainsSong(playlistID, songID string) (bool, error) {
+	var count int
+	err := r.db.QueryRow(`
+		SELECT COUNT(*) FROM playlist_songs WHERE playlist_id = ? AND song_id = ?
+	`, playlistID, songID).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("查询歌单歌曲关系失败: %w", err)
+	}
+	return count > 0, nil
+}
+
 // CountSongs 统计歌单内歌曲数量
 func (r *PlaylistRepo) CountSongs(playlistID string) (int, error) {
 	var count int

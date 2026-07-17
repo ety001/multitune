@@ -4,6 +4,9 @@ import (
 	"testing"
 )
 
+func strPtr(s string) *string { return &s }
+func intPtr(i int) *int       { return &i }
+
 func TestPlaybackRepo_SaveAndGet(t *testing.T) {
 	database := newTestDB(t)
 	repo := NewPlaybackRepo(database)
@@ -98,7 +101,7 @@ func TestPlaybackRepo_PlaylistState(t *testing.T) {
 	}
 
 	// SaveWithProgress 写入歌单记忆点
-	if _, err := repo.SaveWithProgress(identity.ID, playlist.ID, song1.Song.ID, 125, "order"); err != nil {
+	if _, err := repo.SaveWithProgress(identity.ID, strPtr(playlist.ID), strPtr(song1.Song.ID), intPtr(125), strPtr("order")); err != nil {
 		t.Fatalf("SaveWithProgress failed: %v", err)
 	}
 	got, err = repo.GetPlaylistState(playlist.ID)
@@ -116,7 +119,7 @@ func TestPlaybackRepo_PlaylistState(t *testing.T) {
 	}
 
 	// 重复保存更新记忆点
-	if _, err := repo.SaveWithProgress(identity.ID, playlist.ID, song2.Song.ID, 60, "order"); err != nil {
+	if _, err := repo.SaveWithProgress(identity.ID, strPtr(playlist.ID), strPtr(song2.Song.ID), intPtr(60), strPtr("order")); err != nil {
 		t.Fatalf("SaveWithProgress failed: %v", err)
 	}
 	got, _ = repo.GetPlaylistState(playlist.ID)
@@ -126,7 +129,7 @@ func TestPlaybackRepo_PlaylistState(t *testing.T) {
 
 	// playlistID 为空时不写歌单记忆点
 	playlist2, _ := playlistRepo.Create(identity.ID, "跑步", 0)
-	if _, err := repo.SaveWithProgress(identity.ID, "", song1.Song.ID, 30, "order"); err != nil {
+	if _, err := repo.SaveWithProgress(identity.ID, strPtr(""), strPtr(song1.Song.ID), intPtr(30), strPtr("order")); err != nil {
 		t.Fatalf("SaveWithProgress failed: %v", err)
 	}
 	got, _ = repo.GetPlaylistState(playlist2.ID)

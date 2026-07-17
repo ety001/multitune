@@ -1,7 +1,9 @@
 package fsutil
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,5 +114,5 @@ func isAccessible(path string) bool {
 	}
 	defer f.Close()
 	_, err = f.Readdirnames(1)
-	return err == nil || err.Error() == "EOF"
+	return err == nil || errors.Is(err, io.EOF)
 }

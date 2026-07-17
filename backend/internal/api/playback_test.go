@@ -10,6 +10,22 @@ import (
 	"github.com/ety001/multitune/internal/model"
 )
 
+// addSongToPlaylistForTest 将歌曲加入歌单（供播放状态测试使用）
+func addSongToPlaylistForTest(t *testing.T, r http.Handler, playlistID, songID string) {
+	t.Helper()
+	body := map[string]interface{}{
+		"song_ids": []string{songID},
+	}
+	jsonBody, _ := json.Marshal(body)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/playlists/"+playlistID+"/songs", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("添加歌曲到歌单失败: %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestHandler_GetPlaybackState(t *testing.T) {
 	h := newTestHandler(t)
 	r := h.SetupRouter()
@@ -40,6 +56,7 @@ func TestHandler_SavePlaybackState(t *testing.T) {
 	identity := createIdentityForTest(t, r, "爸爸")
 	playlist := createPlaylistForTest(t, r, identity.ID, "通勤")
 	song := createSongForTest(t, h, r, "home", "song.mp3")
+	addSongToPlaylistForTest(t, r, playlist.ID, song.ID)
 
 	body := map[string]interface{}{
 		"playlist_id": playlist.ID,
@@ -198,6 +215,7 @@ func TestHandler_SavePlaybackState_PartialUpdate(t *testing.T) {
 	identity := createIdentityForTest(t, r, "爸爸")
 	playlist := createPlaylistForTest(t, r, identity.ID, "通勤")
 	song := createSongForTest(t, h, r, "home", "song.mp3")
+	addSongToPlaylistForTest(t, r, playlist.ID, song.ID)
 
 	// 先完整保存一次
 	body := map[string]interface{}{
@@ -293,6 +311,39 @@ func TestHandler_SavePlaybackState_NegativePosition(t *testing.T) {
 	}
 }
 
+func TestHandler_SavePlaybackState_SongNotInPlaylist(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	identity := createIdentityForTest(t, r, "爸爸")
+	playlist := createPlaylistForTest(t, r, identity.ID, "通勤")
+	song := createSongForTest(t, h, r, "home", "song.mp3")
+	// 注意：song 未加入 playlist
+
+	body := map[string]interface{}{
+		"playlist_id": playlist.ID,
+		"song_id":     song.ID,
+		"position":    10,
+		"mode":        "order",
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/playback/"+identity.ID, bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("状态码错误: got %d, want %d, body: %s", w.Code, http.StatusBadRequest, w.Body.String())
+	}
+
+	var resp model.APIResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Code != ErrCodeSongNotInPlaylist {
+		t.Errorf("错误码错误: got %d, want %d", resp.Code, ErrCodeSongNotInPlaylist)
+	}
+}
+
 func TestHandler_GetPlaylistProgress_NotFound(t *testing.T) {
 	h := newTestHandler(t)
 	r := h.SetupRouter()
@@ -345,6 +396,7 @@ func TestHandler_GetPlaylistProgress_AfterSave(t *testing.T) {
 	identity := createIdentityForTest(t, r, "爸爸")
 	playlist := createPlaylistForTest(t, r, identity.ID, "通勤")
 	song := createSongForTest(t, h, r, "home", "song.mp3")
+	addSongToPlaylistForTest(t, r, playlist.ID, song.ID)
 
 	// 保存播放状态
 	body := map[string]interface{}{
