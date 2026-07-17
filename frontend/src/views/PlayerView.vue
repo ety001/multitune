@@ -138,7 +138,9 @@ function modeIcon(mode) {
               <td>{{ index + 1 }}</td>
               <td>{{ song.title }}</td>
               <td>
-                <button class="btn btn-danger btn-small" @click.stop="confirmRemove(song)">移除</button>
+                <button class="btn btn-danger btn-small" title="移除" aria-label="移除" @click.stop="confirmRemove(song)">
+                  <i class="fas fa-trash-can"></i>
+                </button>
               </td>
             </tr>
           </tbody>

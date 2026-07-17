@@ -92,7 +92,7 @@ function goPlaylists(id) {
   <div>
     <div class="page-header">
       <div class="page-title">
-        <h2>身份管理</h2>
+        <h2>身份选择</h2>
         <p class="hint">点击身份卡片进入对应歌单，快速切换默认上车身份。</p>
       </div>
       <button class="btn btn-primary" @click="openCreateModal">+ 新建身份</button>

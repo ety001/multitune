@@ -40,8 +40,12 @@ function goToPlayer() {
           <span class="app-tag">完整版</span>
         </div>
         <nav class="app-nav">
-          <RouterLink to="/identities" :class="{ active: route.path.startsWith('/identities') }">身份</RouterLink>
-          <RouterLink to="/file-browser" :class="{ active: route.path === '/file-browser' }">文件浏览器</RouterLink>
+          <RouterLink to="/identities" :class="{ active: route.path.startsWith('/identities') }">
+            <i class="fas fa-users"></i>身份选择
+          </RouterLink>
+          <RouterLink to="/file-browser" :class="{ active: route.path === '/file-browser' }">
+            <i class="fas fa-folder-open"></i>文件浏览器
+          </RouterLink>
         </nav>
       </div>
     </header>
@@ -141,6 +145,10 @@ body {
   font-size: 14px;
   padding: 4px 0;
   border-bottom: 2px solid transparent;
+}
+
+.app-nav a i {
+  margin-right: 6px;
 }
 
 .app-nav a:hover,
