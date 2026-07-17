@@ -17,8 +17,6 @@ const selectedPaths = ref([])
 const targetIdentityId = ref('')
 const targetPlaylistId = ref('')
 const addResult = ref('')
-const searchQuery = ref('')
-const viewMode = ref('browse')
 const scanProgress = ref(null)
 
 // 创建身份弹层
@@ -114,7 +112,9 @@ function onIdentitySelectChange(e) {
   if (value === '__create_identity__') {
     targetIdentityId.value = ''
     openCreateIdentityModal()
+    return
   }
+  targetIdentityId.value = value
 }
 
 function onPlaylistSelectChange(e) {
@@ -122,7 +122,9 @@ function onPlaylistSelectChange(e) {
   if (value === '__create_playlist__') {
     targetPlaylistId.value = ''
     openCreatePlaylistModal()
+    return
   }
+  targetPlaylistId.value = value
 }
 
 function toggleSelect(path) {
@@ -209,29 +211,6 @@ async function playFile(path) {
   }
 }
 
-async function doSearch() {
-  if (!searchQuery.value.trim()) {
-    viewMode.value = 'browse'
-    return
-  }
-  viewMode.value = 'search'
-  await fileStore.searchSongs(searchQuery.value.trim(), '', 50, 0)
-}
-
-function addSearchSong(song) {
-  if (!targetPlaylistId.value) {
-    addResult.value = '请先选择目标歌单'
-    return
-  }
-  playlistStore.addSongs(targetPlaylistId.value, [song.id])
-    .then((data) => {
-      addResult.value = `已添加 1 首歌曲`
-    })
-    .catch((e) => {
-      addResult.value = '添加失败：' + e.message
-    })
-}
-
 function formatBytes(bytes) {
   if (!bytes) return ''
   const kb = bytes / 1024
@@ -247,13 +226,7 @@ function formatBytes(bytes) {
       <p class="hint">浏览存储源，勾选音频文件或文件夹后添加到指定歌单。</p>
     </div>
 
-    <div class="search-bar card">
-      <input v-model="searchQuery" type="text" placeholder="搜索已扫描的歌曲..." @keyup.enter="doSearch" />
-      <button class="btn btn-secondary" @click="doSearch">搜索</button>
-      <button v-if="viewMode === 'search'" class="btn btn-secondary" @click="viewMode = 'browse'">返回浏览</button>
-    </div>
-
-    <div v-if="viewMode === 'browse'">
+    <div>
       <div class="sources card">
         <div class="sources-label">存储源：</div>
         <button
@@ -299,8 +272,8 @@ function formatBytes(bytes) {
           </thead>
           <tbody>
             <tr v-for="item in fileStore.items" :key="item.path" :class="{ 'audio-row': item.is_audio }">
-              <td>
-                <input type="checkbox" :checked="isSelected(item.path)" @change="toggleSelect(item.path)" />
+              <td class="select-cell">
+                <label><input type="checkbox" :checked="isSelected(item.path)" @change="toggleSelect(item.path)" /></label>
               </td>
               <td>
                 <span v-if="item.type === 'dir'" class="dir-name" @click="openDir(item.path)"><i class="fas fa-folder"></i> {{ item.name }}</span>
@@ -318,34 +291,6 @@ function formatBytes(bytes) {
 
         <div v-else class="empty card">当前目录为空</div>
       </div>
-    </div>
-
-    <div v-else-if="viewMode === 'search'">
-      <div v-if="fileStore.loading" class="empty">搜索中...</div>
-      <div v-else-if="fileStore.searchResults.length === 0" class="empty card">未找到匹配的歌曲</div>
-      <table v-else class="file-table card">
-        <thead>
-          <tr>
-            <th>歌曲</th>
-            <th>艺术家</th>
-            <th>专辑</th>
-            <th>来源</th>
-            <th style="width: 100px">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="song in fileStore.searchResults" :key="song.id">
-            <td>{{ song.title }}</td>
-            <td>{{ song.artist || '-' }}</td>
-            <td>{{ song.album || '-' }}</td>
-            <td>{{ song.source }}</td>
-            <td>
-              <button class="btn btn-secondary btn-small" @click="playerStore.playSong(song)">播放</button>
-              <button class="btn btn-primary btn-small" @click="addSearchSong(song)">添加</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
     </div>
 
     <div class="target-panel card">
@@ -453,16 +398,6 @@ function formatBytes(bytes) {
   color: #94a3b8;
   font-size: 14px;
 }
-.search-bar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.search-bar input {
-  flex: 1;
-  min-width: 180px;
-}
 .sources {
   display: flex;
   align-items: center;
@@ -500,6 +435,23 @@ function formatBytes(bytes) {
   text-align: left;
   padding: 10px 12px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+.file-table .select-cell {
+  padding: 0;
+  width: 48px;
+}
+.file-table .select-cell label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.file-table .select-cell input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #6366f1;
 }
 .file-table th {
   color: #94a3b8;
