@@ -488,9 +488,9 @@
     updateModeBtn: function() {
       var iconClass = 'fa-arrow-right';
       if (this.mode === 'random') {
-        iconClass = 'fa-shuffle';
+        iconClass = 'fa-random';
       } else if (this.mode === 'single-loop') {
-        iconClass = 'fa-rotate-right';
+        iconClass = 'fa-redo-alt';
       }
       $(this.options.modeBtn).find('#modeIcon').attr('class', 'fas ' + iconClass);
     },
