@@ -59,6 +59,7 @@ func (h *Handler) SetupRouter() *gin.Engine {
 		api.GET("/songs", h.ListSongs)
 		api.GET("/songs/:id", h.GetSong)
 		api.GET("/songs/:id/stream", h.StreamSong)
+		api.POST("/songs/batch", h.BatchGetSongs)
 
 		// 播放状态 API
 		api.GET("/playback/:identityId", h.GetPlaybackState)

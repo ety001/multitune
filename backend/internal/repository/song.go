@@ -208,3 +208,39 @@ func (r *SongRepo) CountByIDs(ids []string) (int, error) {
 	}
 	return count, nil
 }
+
+// ListByIDs 按 ID 集合批量查询歌曲详情。
+// 注意：SQL IN 不保证返回顺序与入参一致，调用方需按自己持有的 id 顺序重排。
+func (r *SongRepo) ListByIDs(ids []string) ([]model.Song, error) {
+	songs := make([]model.Song, 0)
+	if len(ids) == 0 {
+		return songs, nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	query := "SELECT id, path, source, title, artist, album, duration, cover_url, created_at, updated_at FROM songs WHERE id IN (" + strings.Join(placeholders, ",") + ")"
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("批量查询歌曲失败: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var s model.Song
+		var artist, album, coverURL sql.NullString
+		if err := rows.Scan(&s.ID, &s.Path, &s.Source, &s.Title, &artist, &album, &s.Duration, &coverURL, &s.CreatedAt, &s.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("扫描歌曲失败: %w", err)
+		}
+		s.Artist = artist.String
+		s.Album = album.String
+		s.CoverURL = coverURL.String
+		songs = append(songs, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("遍历歌曲结果失败: %w", err)
+	}
+	return songs, nil
+}

@@ -138,3 +138,56 @@ func TestSongRepo_ListEmpty(t *testing.T) {
 		t.Errorf("len(songs) = %d, want 0", len(songs))
 	}
 }
+
+func TestSongRepo_ListByIDs(t *testing.T) {
+	database := newTestDB(t)
+	repo := NewSongRepo(database)
+
+	song1, _ := repo.Upsert("/a.mp3", "home", "A", "", "", 100)
+	song2, _ := repo.Upsert("/b.mp3", "home", "B", "", "", 200)
+	song3, _ := repo.Upsert("/c.mp3", "home", "C", "", "", 300)
+
+	// 空数组应返回空 slice 而非 nil
+	songs, err := repo.ListByIDs(nil)
+	if err != nil {
+		t.Fatalf("ListByIDs(nil) failed: %v", err)
+	}
+	if songs == nil {
+		t.Error("空数组应返回空 slice 而非 nil")
+	}
+	if len(songs) != 0 {
+		t.Errorf("len = %d, want 0", len(songs))
+	}
+
+	// 正常批量查询
+	songs, err = repo.ListByIDs([]string{song1.Song.ID, song2.Song.ID, song3.Song.ID})
+	if err != nil {
+		t.Fatalf("ListByIDs failed: %v", err)
+	}
+	if len(songs) != 3 {
+		t.Fatalf("len = %d, want 3", len(songs))
+	}
+
+	// 用 map 校验三首都在（顺序不保证）
+	got := make(map[string]bool)
+	for _, s := range songs {
+		got[s.ID] = true
+	}
+	for _, want := range []string{song1.Song.ID, song2.Song.ID, song3.Song.ID} {
+		if !got[want] {
+			t.Errorf("缺少歌曲 %s", want)
+		}
+	}
+
+	// 含不存在的 id：只返回存在的，不报错
+	songs, err = repo.ListByIDs([]string{song1.Song.ID, "nonexistent-id"})
+	if err != nil {
+		t.Fatalf("含不存在 id 时不应报错: %v", err)
+	}
+	if len(songs) != 1 {
+		t.Errorf("应只返回 1 首存在的歌，len = %d", len(songs))
+	}
+	if len(songs) > 0 && songs[0].ID != song1.Song.ID {
+		t.Errorf("应返回 song1，got %s", songs[0].ID)
+	}
+}

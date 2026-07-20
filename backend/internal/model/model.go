@@ -13,14 +13,15 @@ type Identity struct {
 
 // Playlist 歌单
 type Playlist struct {
-	ID         string `json:"id"`
-	IdentityID string `json:"identity_id"`
-	Name       string `json:"name"`
-	CoverURL   string `json:"cover_url,omitempty"`
-	SortOrder  int    `json:"sort_order"`
-	SongCount  int    `json:"song_count"`
-	CreatedAt  int64  `json:"created_at"`
-	UpdatedAt  int64  `json:"updated_at"`
+	ID         string   `json:"id"`
+	IdentityID string   `json:"identity_id"`
+	Name       string   `json:"name"`
+	CoverURL   string   `json:"cover_url,omitempty"`
+	SortOrder  int      `json:"sort_order"`
+	SongCount  int      `json:"song_count"`
+	SongIDs    []string `json:"song_ids,omitempty"` // 歌单内歌曲ID全量有序列表，供前端虚拟列表/全量播放
+	CreatedAt  int64    `json:"created_at"`
+	UpdatedAt  int64    `json:"updated_at"`
 }
 
 // Song 歌曲索引
