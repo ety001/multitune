@@ -13,3 +13,6 @@ data/
 *.db
 *.db-shm
 *.db-wal
+
+# 本地临时文档（白条问题反馈等，不入库）
+lzc-multitune-bug-report.md

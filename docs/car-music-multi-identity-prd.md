@@ -513,7 +513,7 @@ services:
 
 ```bash
 # 1. 构建镜像并推送到 Docker Hub
-docker buildx build --builder cc-builder \
+docker buildx build --builder ssd-builder \
   --platform linux/amd64 \
   -t ety001/multitune:latest-$(git rev-parse --short HEAD) \
   --push .
