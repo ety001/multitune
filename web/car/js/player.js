@@ -4,7 +4,11 @@
   window.MultiTunePlayer = {
     options: null,
     playlist: null,
-    songs: [],
+    songIds: [],          // 歌单内全量歌曲 ID 有序列表
+    songCache: {},        // { id: Song详情 }，按需填充
+    ROW_HEIGHT: 56,       // 列表项固定行高（与 CSS .song-list-item height 一致）
+    WINDOW_SIZE: 50,      // 虚拟窗口同时渲染的条数
+    _scrollTimer: null,   // 滚动节流定时器
     currentIndex: 0,
     mode: 'order', // order | random | single-loop
     randomOrder: [],
@@ -138,11 +142,25 @@
     initPlayer: function(playlist, progress, state) {
       var self = this;
       this.playlist = playlist || {};
-      this.songs = (playlist && playlist.songs) ? playlist.songs : [];
+      // 优先用全量 id 有序列表（新接口）；兜底从旧 songs 数组取 id
+      this.songIds = (playlist && playlist.song_ids && playlist.song_ids.length) ? playlist.song_ids.slice(0) : [];
+      this.songCache = {};
+      if (playlist && playlist.songs && playlist.songs.length) {
+        // 兼容：旧接口返回的 songs 详情直接填进 cache
+        for (var k = 0; k < playlist.songs.length; k++) {
+          this.songCache[playlist.songs[k].id] = playlist.songs[k];
+        }
+        // 若没有 song_ids，用 songs 的 id 顺序兜底
+        if (this.songIds.length === 0) {
+          for (var m = 0; m < playlist.songs.length; m++) {
+            this.songIds.push(playlist.songs[m].id);
+          }
+        }
+      }
 
       $(this.options.playlistNameEl).text(this.playlist.name || '未命名歌单');
 
-      if (this.songs.length === 0) {
+      if (this.songIds.length === 0) {
         $(this.options.titleEl).text('暂无歌曲');
         $(this.options.artistEl).text('请先在完整版或 PC 端添加歌曲');
         return;
@@ -157,8 +175,8 @@
       var startIndex = 0;
       var startPosition = 0;
       if (progress && progress.song_id) {
-        for (var i = 0; i < this.songs.length; i++) {
-          if (this.songs[i].id === progress.song_id) {
+        for (var i = 0; i < this.songIds.length; i++) {
+          if (this.songIds[i] === progress.song_id) {
             startIndex = i;
             startPosition = progress.position || 0;
             break;
@@ -313,13 +331,77 @@
       });
     },
 
+    // 取某下标的歌曲详情（可能为 undefined，调用方需判断）
+    getSong: function(index) {
+      if (index < 0 || index >= this.songIds.length) {
+        return null;
+      }
+      return this.songCache[this.songIds[index]] || null;
+    },
+
+    // 按需查询缺失详情并缓存，完成后回调。
+    // 去重：同一批次进行中的请求不重复发。
+    // _pending: { id: true } 正在查的 id 集合
+    ensureSongs: function(ids, callback) {
+      var self = this;
+      var missing = [];
+      if (!this._pending) { this._pending = {}; }
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        if (id && !this.songCache[id] && !this._pending[id]) {
+          missing.push(id);
+          this._pending[id] = true;
+        }
+      }
+      if (missing.length === 0) {
+        if (callback) { callback(); }
+        return;
+      }
+      MultiTune.post('/songs/batch', { ids: missing }, function(err, data) {
+        // 无论成败，先清 pending 标记
+        for (var j = 0; j < missing.length; j++) {
+          delete self._pending[missing[j]];
+        }
+        if (err || !data || !data.songs) {
+          if (callback) { callback(err || '批量查询失败'); }
+          return;
+        }
+        for (var k = 0; k < data.songs.length; k++) {
+          self.songCache[data.songs[k].id] = data.songs[k];
+        }
+        if (callback) { callback(); }
+      });
+    },
+
     playSong: function(index, autoPlay, startPosition) {
-      if (index < 0 || index >= this.songs.length) {
+      if (index < 0 || index >= this.songIds.length) {
         return;
       }
 
       this.currentIndex = index;
-      var song = this.songs[index];
+      var self = this;
+      var songId = this.songIds[index];
+
+      // 预加载：当前首前后各 3 首的详情，减少切歌等待
+      var preloadIds = [];
+      for (var p = index - 3; p <= index + 3; p++) {
+        if (p >= 0 && p < this.songIds.length) {
+          preloadIds.push(this.songIds[p]);
+        }
+      }
+      this.ensureSongs(preloadIds, function() {
+        self._doPlaySong(index, autoPlay, startPosition);
+      });
+    },
+
+    // 实际执行播放（详情已就绪）。从 playSong 拆出，供 ensureSongs 回调调用。
+    _doPlaySong: function(index, autoPlay, startPosition) {
+      var song = this.getSong(index);
+      if (!song) {
+        // 详情查不到（歌曲可能已被删除），跳下一首
+        this.onAudioError();
+        return;
+      }
       var audio = $(this.options.audioEl)[0];
 
       $(this.options.titleEl).text(song.title || '未知歌曲');
@@ -411,7 +493,7 @@
 
       var prevIndex = this.currentIndex - 1;
       if (prevIndex < 0) {
-        prevIndex = this.songs.length - 1;
+        prevIndex = this.songIds.length - 1;
       }
       this.playSong(prevIndex, true, 0);
     },
@@ -430,14 +512,14 @@
       }
 
       var next = this.currentIndex + 1;
-      if (next >= this.songs.length) {
+      if (next >= this.songIds.length) {
         return -1;
       }
       return next;
     },
 
     getRandomIndex: function() {
-      if (this.songs.length <= 1) {
+      if (this.songIds.length <= 1) {
         return 0;
       }
 
@@ -453,7 +535,7 @@
 
     buildRandomOrder: function() {
       var arr = [];
-      for (var i = 0; i < this.songs.length; i++) {
+      for (var i = 0; i < this.songIds.length; i++) {
         arr.push(i);
       }
       // Fisher-Yates shuffle
@@ -577,23 +659,19 @@
 
     scrollActiveSongIntoView: function() {
       var $list = $(this.options.songListEl);
-      var $active = $list.find('.song-list-item.active');
-      if ($active.length === 0) {
+      if (this.songIds.length === 0) {
         return;
       }
-
       var listHeight = $list.height();
-      var activeTop = $active.position().top;
-      var activeHeight = $active.outerHeight();
-      var scrollTop = $list.scrollTop();
-
-      // 目标位置：让 active 项居中显示
-      var targetTop = scrollTop + activeTop - (listHeight - activeHeight) / 2;
+      // 按 index × 行高直接算目标 scrollTop，不依赖 DOM 测量（虚拟列表下不可靠）
+      var targetTop = this.currentIndex * this.ROW_HEIGHT - (listHeight - this.ROW_HEIGHT) / 2;
       if (targetTop < 0) {
         targetTop = 0;
       }
-
-      $list.animate({ scrollTop: targetTop }, 200);
+      var self = this;
+      $list.stop(true, true).animate({ scrollTop: targetTop }, 200);
+      // 动画结束后刷新窗口，确保 active 项可见
+      setTimeout(function() { self._renderWindow(); }, 220);
     },
 
     openModal: function(modalSelector) {
@@ -771,41 +849,109 @@
       }
     },
 
+    // 初始化虚拟列表骨架（仅调一次）：撑高 spacer + 窗口容器 + 绑定滚动
     renderSongList: function() {
       var self = this;
       var $list = $(this.options.songListEl);
-      if (this.songs.length === 0) {
+
+      if (this.songIds.length === 0) {
         MultiTune.showEmpty($list, '暂无歌曲');
         return;
       }
 
+      // 搭建虚拟列表骨架：spacer 撑出总高度（产生滚动条），窗口容器承载可见项
+      var totalHeight = this.songIds.length * this.ROW_HEIGHT;
+      var skeleton =
+        '<div class="song-list-spacer" style="height:' + totalHeight + 'px">' +
+          '<div class="song-list-window" id="songListWindow"></div>' +
+        '</div>';
+      $list.html(skeleton);
+
+      // 滚动节流：scroll 高频触发，老 WebView 上必须节流
+      $list.off('scroll.virtuallist').on('scroll.virtuallist', function() {
+        if (self._scrollTimer) { clearTimeout(self._scrollTimer); }
+        self._scrollTimer = setTimeout(function() {
+          self._renderWindow();
+        }, 50);
+      });
+
+      // 首次渲染窗口（定位到当前播放首附近）
+      this._renderWindow();
+    },
+
+    // 渲染可视窗口内的条目。根据 scrollTop 计算窗口起止下标，
+    // 按需 ensureSongs 缺失详情后，更新 50 个 DOM 节点的内容与位置。
+    _renderWindow: function() {
+      var self = this;
+      var $list = $(this.options.songListEl);
+      if (this.songIds.length === 0) { return; }
+
+      var scrollTop = $list.scrollTop();
+      var total = this.songIds.length;
+      var rowHeight = this.ROW_HEIGHT;
+      var windowSize = this.WINDOW_SIZE;
+
+      // 可视区大约起始 index（向上留一个 buffer，避免滚到边界露白）
+      var buffer = 10;
+      var startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
+      var endIndex = Math.min(total, startIndex + windowSize);
+
+      // 当前窗口需要的 id 集合
+      var needIds = [];
+      for (var i = startIndex; i < endIndex; i++) {
+        needIds.push(this.songIds[i]);
+      }
+
+      this.ensureSongs(needIds, function() {
+        self._paintWindow(startIndex, endIndex);
+      });
+    },
+
+    // 把 [startIndex, endIndex) 的条目画到窗口容器
+    _paintWindow: function(startIndex, endIndex) {
+      var $window = $('#songListWindow');
+      if ($window.length === 0) { return; }
+
+      // 窗口容器定位到 startIndex 对应的偏移
+      $window.css({
+        '-webkit-transform': 'translateY(' + (startIndex * this.ROW_HEIGHT) + 'px)',
+        'transform': 'translateY(' + (startIndex * this.ROW_HEIGHT) + 'px)'
+      });
+
       var html = '';
-      for (var i = 0; i < this.songs.length; i++) {
-        var song = this.songs[i];
+      for (var i = startIndex; i < endIndex; i++) {
+        var song = this.songCache[this.songIds[i]];
+        var title = song ? (song.title || '未知歌曲') : '加载中...';
         var activeClass = i === this.currentIndex ? ' active' : '';
         html += '<div class="song-list-item' + activeClass + '" data-index="' + i + '">';
-        html += '<div class="song-list-title">' + escapeHtml(song.title || '未知歌曲') + '</div>';
+        html += '<span class="song-list-title">' + escapeHtml(title) + '</span>';
         html += '</div>';
       }
-      $list.html(html);
+      $window.html(html);
 
-      $list.find('.song-list-item').on('click', function() {
+      // 绑定点击（事件委托到窗口容器，避免每次重建绑定）
+      var self = this;
+      $window.off('click.virtuallist').on('click.virtuallist', '.song-list-item', function() {
         var idx = parseInt($(this).attr('data-index'), 10);
         self.hasUserInteracted = true;
         self.playSong(idx, true, 0);
       });
+
+      // 窗口位置缓存（供调试/判断是否需要重画）
+      this._lastStart = startIndex;
+      this._lastEnd = endIndex;
     },
 
     // includeMode 为 true 时附带播放模式（模式切换、页面离开等关键节点）；
     // 周期上报只发 3 个字段以压缩体积
     saveState: function(includeMode) {
       var audio = $(this.options.audioEl)[0];
-      if (!this.songs.length || !this.songs[this.currentIndex]) {
+      if (!this.songIds.length || this.currentIndex >= this.songIds.length) {
         return;
       }
 
       var position = Math.floor(audio.currentTime || 0);
-      var songId = this.songs[this.currentIndex].id;
+      var songId = this.songIds[this.currentIndex];
 
       var data = {
         playlist_id: this.options.playlistId,

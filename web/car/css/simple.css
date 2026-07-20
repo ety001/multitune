@@ -443,9 +443,15 @@ input:focus,
 
 .playlist-select-item,
 .song-list-item {
-  padding: 14px 16px;
+  height: 56px;
+  line-height: 56px;
+  padding: 0 16px;
+  box-sizing: border-box;
   background: rgba(148, 163, 184, 0.08);
   color: #e2e8f0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .identity-select-item:active,
@@ -459,8 +465,25 @@ input:focus,
   border-left: 4px solid #6366f1;
 }
 
-.playlist-select-name,
 .song-list-title {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+/* 虚拟列表：spacer 撑出总滚动高度，viewport 内绝对定位的窗口容器承载可见项 */
+.song-list-spacer {
+  position: relative;
+  width: 100%;
+}
+
+.song-list-window {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+}
+
+.playlist-select-name {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 4px;
@@ -474,6 +497,7 @@ input:focus,
 .playlist-modal-body {
   max-height: 60vh;
   overflow-y: auto;
+  position: relative;
 }
 
 /* 响应式：小屏按钮字号 */
