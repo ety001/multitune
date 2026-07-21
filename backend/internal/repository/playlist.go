@@ -280,6 +280,34 @@ func (r *PlaylistRepo) UpdateSongOrder(playlistID string, songIDs []string) erro
 	return nil
 }
 
+// ListSongIDs 获取歌单内歌曲 ID 的有序列表（全量，不分页）。
+// 排序与 ListSongs 一致（sort_order ASC, created_at ASC），供前端做虚拟列表/全量播放。
+// 注意：返回的 id 即使对应歌曲已被删除也会包含（这里不 JOIN songs，
+// 调用方按需 ListByIDs 查详情时，已删除的 id 自然查不到）。
+func (r *PlaylistRepo) ListSongIDs(playlistID string) ([]string, error) {
+	ids := make([]string, 0)
+	rows, err := r.db.Query(`
+		SELECT song_id FROM playlist_songs
+		WHERE playlist_id = ?
+		ORDER BY sort_order ASC, created_at ASC
+	`, playlistID)
+	if err != nil {
+		return nil, fmt.Errorf("查询歌单歌曲ID列表失败: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("扫描歌曲ID失败: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("遍历歌曲ID结果失败: %w", err)
+	}
+	return ids, nil
+}
+
 // ListSongs 获取歌单内歌曲列表（含总数）
 func (r *PlaylistRepo) ListSongs(playlistID string, limit, offset int) ([]model.Song, int, error) {
 	var total int

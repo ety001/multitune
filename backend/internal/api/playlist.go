@@ -186,6 +186,18 @@ func (h *Handler) GetPlaylist(c *gin.Context) {
 
 	playlist.SongCount = songTotal
 
+	// 填充全量歌曲ID有序列表，供车机版前端做虚拟列表与全量播放
+	songIDs, err := h.playlistRepo.ListSongIDs(id)
+	if err != nil {
+		slog.Error("查询歌单歌曲ID列表失败", "error", err, "id", id)
+		c.JSON(http.StatusInternalServerError, model.APIResponse{
+			Code:    9001,
+			Message: "内部错误",
+		})
+		return
+	}
+	playlist.SongIDs = songIDs
+
 	resp := playlistDetailResponse{
 		Playlist: *playlist,
 		Songs:    songs,

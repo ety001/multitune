@@ -18,9 +18,10 @@ type scanRequest struct {
 
 // error codes for scan API
 const (
-	ErrCodeScanBusy        = 4003
-	ErrCodeSongNotFound    = 3001
-	ErrCodeSongNotReadable = 3002
+	ErrCodeScanBusy          = 4003
+	ErrCodeSongNotFound      = 3001
+	ErrCodeSongNotReadable   = 3002
+	ErrCodeSongCoverNotFound = 3003
 )
 
 // ScanSongs POST /api/scan
@@ -277,4 +278,67 @@ func (h *Handler) runScanJob(job *model.ScanJob, paths []string) {
 	job.Current = job.Total
 	job.Updated = result.Updated
 	update()
+}
+
+// batchSongsRequest 批量查询歌曲详情请求
+type batchSongsRequest struct {
+	IDs []string `json:"ids"`
+}
+
+// batchSongsResponse 批量查询歌曲详情响应。
+// 注意：返回的歌曲顺序不保证与请求 ids 顺序一致（SQL IN 不保序），
+// 调用方需按自己持有的 id 顺序自行重排。
+type batchSongsResponse struct {
+	Songs []model.Song `json:"songs"`
+}
+
+// BatchGetSongs POST /api/songs/batch
+// 按歌曲 ID 集合批量查询详情，供车机版虚拟列表按需加载。
+// 单次最多 100 个 id，防止滥用。
+func (h *Handler) BatchGetSongs(c *gin.Context) {
+	var req batchSongsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, model.APIResponse{
+			Code:    400,
+			Message: "请求参数错误",
+		})
+		return
+	}
+
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusOK, model.APIResponse{
+			Code:    0,
+			Message: "ok",
+			Data: batchSongsResponse{
+				Songs: make([]model.Song, 0),
+			},
+		})
+		return
+	}
+
+	if len(req.IDs) > 100 {
+		c.JSON(http.StatusBadRequest, model.APIResponse{
+			Code:    400,
+			Message: "单次最多查询 100 首歌曲",
+		})
+		return
+	}
+
+	songs, err := h.songRepo.ListByIDs(req.IDs)
+	if err != nil {
+		slog.Error("批量查询歌曲失败", "error", err, "count", len(req.IDs))
+		c.JSON(http.StatusInternalServerError, model.APIResponse{
+			Code:    9001,
+			Message: "内部错误",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, model.APIResponse{
+		Code:    0,
+		Message: "ok",
+		Data: batchSongsResponse{
+			Songs: songs,
+		},
+	})
 }

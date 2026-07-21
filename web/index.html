@@ -2,210 +2,108 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>多音盒 MultiTune</title>
   <link rel="icon" type="image/png" href="/favicon.png">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    /* 【v4】全链路统一 100vh */
     html, body {
-      width: 100%;
-      height: 100%;
+      width: 100%; min-height: 100vh;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
-      overflow: hidden;
+      background: #0f172a; color: #e2e8f0;
     }
-    .container {
-      display: block;
-      width: 100%;
-      min-height: 100%;
-      padding: 15% 24px 24px;
-      text-align: center;
+    .container { position: relative; min-height: 100vh; width: 100%; }
+    .container-inner {
+      position: absolute; top: 50%; left: 0; width: 100%;
+      transform: translateY(-50%); -webkit-transform: translateY(-50%);
+      text-align: center; padding: 24px;
     }
-    .logo {
-      width: 96px;
-      height: 96px;
-      margin: 0 auto 24px;
-      border-radius: 24px;
-      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
-    }
-    .logo img {
-      width: 100%;
-      height: 100%;
-      border-radius: 24px;
-      object-fit: cover;
-    }
-    h1 {
-      font-size: 32px;
-      margin-bottom: 8px;
-      letter-spacing: 2px;
-    }
-    .subtitle {
-      font-size: 16px;
-      color: #94a3b8;
-      margin-bottom: 48px;
-    }
-    .status {
-      font-size: 18px;
-      color: #cbd5e1;
-      margin-bottom: 24px;
-      min-height: 28px;
-    }
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid rgba(255, 255, 255, 0.1);
-      border-top-color: #8b5cf6;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 32px;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    .manual-links {
-      display: block;
-      text-align: center;
-    }
-    .manual-links a {
-      display: inline-block;
-      margin: 0 8px;
-      color: #94a3b8;
-      text-decoration: none;
-      font-size: 14px;
-      padding: 8px 16px;
-      border: 1px solid rgba(148, 163, 184, 0.3);
-      border-radius: 8px;
-      transition: all 0.2s;
-    }
-    .manual-links a:hover,
-    .manual-links a:active {
-      color: #fff;
-      border-color: #8b5cf6;
-      background: rgba(139, 92, 246, 0.1);
-    }
+    .logo { width: 96px; height: 96px; margin: 0 auto 24px; border-radius: 24px; box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3); }
+    .logo img { width: 100%; height: 100%; border-radius: 24px; object-fit: cover; }
+    h1 { font-size: 32px; margin-bottom: 8px; letter-spacing: 2px; }
+    .subtitle { font-size: 16px; color: #94a3b8; margin-bottom: 48px; }
+    .status { font-size: 18px; color: #cbd5e1; margin-bottom: 24px; min-height: 28px; }
+    .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #8b5cf6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 32px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .manual-links { display: block; text-align: center; }
+    .manual-links a { display: inline-block; margin: 0 8px; color: #94a3b8; text-decoration: none; font-size: 14px; padding: 8px 16px; border: 1px solid rgba(148,163,184,0.3); border-radius: 8px; transition: all 0.2s; }
+    .manual-links a:hover, .manual-links a:active { color: #fff; border-color: #8b5cf6; background: rgba(139,92,246,0.1); }
   </style>
 </head>
 <body>
+  <div style="position:fixed;top:0;left:0;z-index:99999;background:#ef4444;color:#fff;font:bold 16px monospace;padding:4px 10px;">BUILD v4</div>
+  <div id="measure" style="position:fixed;left:0;bottom:0;width:100%;z-index:99998;background:#000;color:#0f0;font:14px monospace;padding:6px 10px;">
+    innerH=<span id="m1">?</span> clientH=<span id="m2">?</span> 100vh=<span id="m3">?</span> bodyH=<span id="m4">?</span> contH=<span id="m5">?</span>
+  </div>
+  <script>
+    (function(){
+      function upd(){
+        var f=function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
+        f('m1', window.innerHeight);
+        f('m2', document.documentElement.clientHeight);
+        var d=document.createElement('div'); d.style.cssText='height:100vh;position:absolute;left:-9999px'; document.body.appendChild(d);
+        f('m3', d.offsetHeight); d.parentNode.removeChild(d);
+        f('m4', document.body.offsetHeight);
+        var c=document.querySelector('.container'); f('m5', c?c.offsetHeight:0);
+      }
+      upd(); setTimeout(upd,400); setTimeout(upd,1200);
+    })();
+  </script>
   <div class="container">
-    <div class="logo"><img src="/logo.png" alt="多音盒" onerror="this.style.display='none'; this.parentNode.innerHTML='音';"></div>
-    <h1>多音盒</h1>
-    <div class="subtitle">MultiTune · 车机多身份音乐播放器</div>
-    <div class="status" id="status">正在检测浏览器...</div>
-    <div class="spinner" id="spinner"></div>
-    <div class="manual-links">
-      <a href="/car/" id="carLink">进入车机版</a>
-      <a href="/full/" id="fullLink">进入完整版</a>
+    <div class="container-inner">
+      <div class="logo"><img src="/logo.png" alt="多音盒" onerror="this.style.display='none'; this.parentNode.innerHTML='音';"></div>
+      <h1>多音盒</h1>
+      <div class="subtitle">MultiTune · 车机多身份音乐播放器</div>
+      <div class="status" id="status">正在检测浏览器...</div>
+      <div class="spinner" id="spinner"></div>
+      <div class="manual-links">
+        <a href="/car/" id="carLink">进入车机版</a>
+        <a href="/full/" id="fullLink">进入完整版</a>
+      </div>
     </div>
   </div>
-
   <script>
     (function() {
       function detectBrowser() {
         var ua = navigator.userAgent || navigator.vendor || window.opera;
-        var chromeVersion = null;
-        var webviewVersion = null;
+        var chromeVersion = null, webviewVersion = null;
         var chromeMatch = ua.match(/Chrome\/(\d+)/);
-        if (chromeMatch) {
-          chromeVersion = parseInt(chromeMatch[1], 10);
-        }
+        if (chromeMatch) chromeVersion = parseInt(chromeMatch[1], 10);
         var webviewMatch = ua.match(/wv.*Chrome\/(\d+)/i);
-        if (webviewMatch) {
-          webviewVersion = parseInt(webviewMatch[1], 10);
-        }
-        return {
-          userAgent: ua,
-          chromeVersion: chromeVersion,
-          webviewVersion: webviewVersion,
-          isWebview: webviewMatch !== null
-        };
+        if (webviewMatch) webviewVersion = parseInt(webviewMatch[1], 10);
+        return { userAgent: ua, chromeVersion: chromeVersion, webviewVersion: webviewVersion, isWebview: webviewMatch !== null };
       }
-
       function collectDeviceInfo() {
-        var browser = detectBrowser();
-        return {
-          userAgent: browser.userAgent,
-          chromeVersion: browser.chromeVersion,
-          webViewVersion: browser.webviewVersion,
-          isWebView: browser.isWebview,
-          screenWidth: window.screen ? window.screen.width : 0,
-          screenHeight: window.screen ? window.screen.height : 0,
-          windowWidth: window.innerWidth || document.documentElement.clientWidth || 0,
-          windowHeight: window.innerHeight || document.documentElement.clientHeight || 0,
-          language: navigator.language || navigator.userLanguage || '',
-          platform: navigator.platform || 'unknown',
-          cookieEnabled: !!navigator.cookieEnabled,
-          onLine: navigator.onLine === true,
-          timestamp: new Date().toISOString()
-        };
+        var b = detectBrowser();
+        return { userAgent: b.userAgent, chromeVersion: b.chromeVersion, webViewVersion: b.webviewVersion, isWebView: b.isWebview, screenWidth: window.screen ? window.screen.width : 0, screenHeight: window.screen ? window.screen.height : 0, windowWidth: window.innerWidth || document.documentElement.clientWidth || 0, windowHeight: window.innerHeight || document.documentElement.clientHeight || 0, language: navigator.language || navigator.userLanguage || '', platform: navigator.platform || 'unknown', cookieEnabled: !!navigator.cookieEnabled, onLine: navigator.onLine === true, timestamp: new Date().toISOString() };
       }
-
       function shouldUseCar(browser) {
-        // URL 参数强制指定版本（兼容旧 v=simple/v=modern）
         var search = window.location.search || '';
         if (search.indexOf('v=car') !== -1 || search.indexOf('v=simple') !== -1) return true;
         if (search.indexOf('v=full') !== -1 || search.indexOf('v=modern') !== -1) return false;
-
-        // WebView 版本 <= 74 使用车机版
-        if (browser.isWebview && browser.webviewVersion !== null && browser.webviewVersion <= 74) {
-          return true;
-        }
-        // Chrome 版本 <= 74 使用车机版
-        if (browser.chromeVersion !== null && browser.chromeVersion <= 74) {
-          return true;
-        }
-        // 检测不到版本时保守使用车机版
-        if (browser.chromeVersion === null && browser.webviewVersion === null) {
-          return true;
-        }
+        if (browser.isWebview && browser.webviewVersion !== null && browser.webviewVersion <= 74) return true;
+        if (browser.chromeVersion !== null && browser.chromeVersion <= 74) return true;
+        if (browser.chromeVersion === null && browser.webviewVersion === null) return true;
         return false;
       }
-
       function sendDeviceInfo(info, callback) {
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/device-info', true);
         xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.onreadystatechange = function() {
-          if (xhr.readyState === 4) {
-            callback(xhr.status === 200);
-          }
-        };
-        xhr.onerror = function() {
-          callback(false);
-        };
-        try {
-          xhr.send(JSON.stringify(info));
-        } catch (e) {
-          callback(false);
-        }
+        xhr.onreadystatechange = function() { if (xhr.readyState === 4) callback(xhr.status === 200); };
+        xhr.onerror = function() { callback(false); };
+        try { xhr.send(JSON.stringify(info)); } catch (e) { callback(false); }
       }
-
-      function redirect(url, delay) {
-        setTimeout(function() {
-          window.location.href = url;
-        }, delay);
-      }
-
       var statusEl = document.getElementById('status');
       var browser = detectBrowser();
       var useCar = shouldUseCar(browser);
       var targetUrl = useCar ? '/car/' : '/full/';
-
-      statusEl.textContent = useCar
-        ? '检测到老版本浏览器，即将进入车机版...'
-        : '正在进入完整版...';
-
+      statusEl.textContent = useCar ? '检测到老版本浏览器，即将进入车机版...' : '正在进入完整版...';
       var deviceInfo = collectDeviceInfo();
-      sendDeviceInfo(deviceInfo, function() {
-        // 上报成功后不立即跳转，留给用户手动选择的时间
-      });
-
-      // 无论上报是否成功，3 秒后兜底跳转
-      redirect(targetUrl, 3000);
+      sendDeviceInfo(deviceInfo, function() {});
+      // 【v4 测量期间临时禁用跳转】
+      // setTimeout(function(){ window.location.href = targetUrl; }, 3000);
     })();
   </script>
 </body>

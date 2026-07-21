@@ -1,14 +1,41 @@
 /* 车机版自定义样式（基于 Bootstrap 3，覆盖仅用于播放器特定元素） */
 
+/* 根元素铺满视口并清除默认外边距。
+   注意：车机底部那条白色留白是懒猫微服 App 外壳 WebView 的系统区
+  （视口 height=568px，物理屏 720px，差额在外壳层），前端 CSS 无法触及。
+   这里只是保证 body 背景铺满自身视口，并消除老 WebView 的默认 body margin。 */
 html, body {
   width: 100%;
-  min-height: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
   background: #0f172a;
   color: #e2e8f0;
 }
 
+/* 去掉所有可交互元素点击后的选中框（focus outline）和点击瞬间高亮。
+   车机为纯触控操作，无键盘焦点可达性需求；老 WebView 点击后焦点不自动释放，
+   outline 会一直残留成方框，影响体验。 */
+button,
+a,
+input,
+[tabindex],
+.player-control-btn,
+.identity-card,
+.header-nav-btn {
+  outline: none;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+  -webkit-focus-ring-color: rgba(0, 0, 0, 0);
+}
+button:focus,
+a:focus,
+input:focus,
+[tabindex]:focus {
+  outline: none;
+}
+
 .simple-body {
-  padding-bottom: 20px;
+  min-height: 100%;
 }
 
 /* 顶部导航 */
@@ -416,9 +443,15 @@ html, body {
 
 .playlist-select-item,
 .song-list-item {
-  padding: 14px 16px;
+  height: 56px;
+  line-height: 56px;
+  padding: 0 16px;
+  box-sizing: border-box;
   background: rgba(148, 163, 184, 0.08);
   color: #e2e8f0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .identity-select-item:active,
@@ -432,8 +465,25 @@ html, body {
   border-left: 4px solid #6366f1;
 }
 
-.playlist-select-name,
 .song-list-title {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+/* 虚拟列表：spacer 撑出总滚动高度，viewport 内绝对定位的窗口容器承载可见项 */
+.song-list-spacer {
+  position: relative;
+  width: 100%;
+}
+
+.song-list-window {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+}
+
+.playlist-select-name {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 4px;
@@ -447,6 +497,7 @@ html, body {
 .playlist-modal-body {
   max-height: 60vh;
   overflow-y: auto;
+  position: relative;
 }
 
 /* 响应式：小屏按钮字号 */

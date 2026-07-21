@@ -347,3 +347,51 @@ if count != len(ids) {
 - [ ] 跨资源写入校验了关联关系（不只校验单个资源存在）
 - [ ] 测试覆盖成功 + 错误路径
 - [ ] PR Body 使用 `--body-file` 写入，无 `\n` 字面量换行，并已用 `gh pr view` 检查
+
+## Related project directories
+
+本项目跨越多个目录。跨目录访问一律使用**绝对路径**，相对路径无法从不同工作目录解析。
+
+### Registry
+
+- `/home/ety001/workspace/lzc-appdb/multitune` — 懒猫微服（Lazycat / LZC）应用商店**打包与发布目录**（独立 git 仓库，非本工作区子目录）。包含：
+    - `lzc-manifest.yml` — 应用清单：子域名 `multitune`、路由 `/=http://multitune:8080`、容器镜像 tag（`registry.lazycat.cloud/ety001/ety001/multitune:<tag>`）、挂载 `/lzcapp/var/data:/app/data`、环境变量（`LAZYCAT_DEPLOY=true` 等）。
+    - `package.yml` — 应用包元信息：包名 `ink.akawa.ety001.multitune`、版本（当前 `0.0.1`）、名称、权限（`media.read`、`document.read`）、locale。
+    - `lzc-build.yml` — LZC 构建配置，图标指定为 `./multitune.png`，产物输出到 `./`。
+    - 构建产物 `*.lpk`（已被该目录 `.gitignore` 忽略）。
+
+### Dependencies between directories
+
+- **镜像 tag 同步（强）**：本工作区构建并推送容器镜像后 → 必须更新打包目录 `lzc-manifest.yml` 中 `services.multitune.image` 的 tag，否则应用商店发布的仍是旧镜像。
+- **版本号同步（强）**：本工作区发布新语义版本时 → 同步更新打包目录 `package.yml` 的 `version` 字段，两者版本号应保持一致。
+- **打包目录不包含应用源码**：其镜像依赖本工作区 `Dockerfile` 的构建产物；修改打包目录的清单/元信息不影响应用运行逻辑，仅影响商店发布与运行时配置（端口、挂载、环境变量）。
+- **图标为独立资源（弱）**：打包目录的商店图标 `multitune.png` 与本工作区的 `web/logo.png`（应用内 UI）是**两份独立维护的资源**，文件名不同、用途不同。变更其一不强制同步另一者；若希望统一，需显式手动同步。
+- **路径再校验**：注册的路径是文本记录，在进行跨目录的破坏性操作前，应先确认路径仍然存在。
+
+### 调试工作流：把 LZC 应用路由指向本地开发环境（懒猫微服官方推荐）
+
+懒猫微服支持一种免打 `.lpk` 的快速调试法：本地直接跑开发服务，再让懒猫设备上的应用把请求"回环"到局域网内的开发机。适用前提：开发机与懒猫设备处于**同一局域网**。
+
+**前提条件（已验证）**：后端入口 `backend/cmd/server/main.go` 用 `addr := fmt.Sprintf(":%s", cfg.Port)` 启动，`:` 前留空即监听 `0.0.0.0`，因此 `go run`/`go build` 起来的服务**默认就对局域网开放**，无需额外配置。端口取自 `cfg.Port`（Dockerfile 默认 `PORT=8080`）。
+
+**步骤**：
+
+1. 在开发机本地启动后端（及前端构建/watch）。确认监听端口，默认 `8080`。
+2. 取开发机局域网 IP，例如 `192.168.44.2`（用 `ip addr` 或 `ipconfig` 确认，不要用 `localhost`/`127.0.0.1`）。
+3. 编辑打包目录的 `/home/ety001/workspace/lzc-appdb/multitune/lzc-manifest.yml`，把 `application.routes` 的目标从容器服务地址改为开发机地址：
+
+   ```yaml
+   # 调试态（指向本地开发环境，请勿提交）
+   routes:
+     - /=http://192.168.44.2:8080
+   ```
+
+   生产态原始值为 `- /=http://multitune:8080`（容器内服务名）。
+4. 在懒猫设备上重装/刷新该应用，此时应用内的请求会被路由到开发机的本地服务，可直接调试。
+5. **调试结束务必还原 `lzc-manifest.yml` 的 `routes` 为 `http://multitune:8080`，再提交**。调试态路由指向局域网私网地址，提交后会破坏线上分发。
+
+**注意事项**：
+
+- 调试态改动**只改 `routes` 目标**，不要顺手提交；该文件是发布清单，私网地址不可入库。
+- 开发机防火墙需放行对应端口（如 `8080`），否则懒猫设备连不上。
+- 此法调试的是「应用通过 LZC 路由访问后端」的链路；容器构建/镜像本身仍需走正常的镜像 tag 流程（见上方「镜像 tag 同步」）。

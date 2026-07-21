@@ -103,3 +103,104 @@ func TestHandler_StreamSong_FileMissing(t *testing.T) {
 		t.Errorf("状态码错误: got %d, want %d", w.Code, http.StatusNotFound)
 	}
 }
+
+func TestHandler_CoverImage_WithJpg(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	sourceDir := filepath.Join(t.TempDir(), "home")
+	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	songPath := filepath.Join(sourceDir, "song.mp3")
+	if err := os.WriteFile(songPath, []byte("audio"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	coverContent := []byte("fake-jpeg-data")
+	if err := os.WriteFile(filepath.Join(sourceDir, "song.jpg"), coverContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, _ := h.songRepo.Upsert(songPath, "home", "Song", "", "", 100)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/songs/"+result.Song.ID+"/cover", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("状态码错误: got %d, body: %s", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "image/jpeg" {
+		t.Errorf("Content-Type = %q, want image/jpeg", ct)
+	}
+	if body := w.Body.Bytes(); string(body) != string(coverContent) {
+		t.Errorf("响应体错误: got %q", body)
+	}
+}
+
+func TestHandler_CoverImage_NoCover(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	sourceDir := filepath.Join(t.TempDir(), "home")
+	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	songPath := filepath.Join(sourceDir, "nocover.mp3")
+	if err := os.WriteFile(songPath, []byte("audio"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, _ := h.songRepo.Upsert(songPath, "home", "NoCover", "", "", 100)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/songs/"+result.Song.ID+"/cover", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("无封面应返回 404，got %d", w.Code)
+	}
+}
+
+func TestHandler_CoverImage_SongNotFound(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/songs/nonexistent/cover", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("歌曲不存在应返回 404，got %d", w.Code)
+	}
+}
+
+func TestHandler_CoverImage_PngExtension(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	sourceDir := filepath.Join(t.TempDir(), "home")
+	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	songPath := filepath.Join(sourceDir, "pngsong.mp3")
+	if err := os.WriteFile(songPath, []byte("audio"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "pngsong.png"), []byte("png-data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, _ := h.songRepo.Upsert(songPath, "home", "Png", "", "", 100)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/songs/"+result.Song.ID+"/cover", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("png 封面应返回 200，got %d", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("Content-Type = %q, want image/png", ct)
+	}
+}

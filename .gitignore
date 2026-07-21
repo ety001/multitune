@@ -1,0 +1,18 @@
+# 编辑器 / 工具私有目录
+.zcode/
+
+# Go
+backend/multitune-server
+
+# 依赖与构建产物
+node_modules/
+frontend/dist/
+
+# 本地运行数据
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# 本地临时文档（白条问题反馈等，不入库）
+lzc-multitune-bug-report.md
