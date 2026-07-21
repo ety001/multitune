@@ -406,7 +406,13 @@
 
       $(this.options.titleEl).text(song.title || '未知歌曲');
       $(this.options.artistEl).text(song.artist || '-');
-      $(this.options.coverEl).html('<i class="fas fa-music"></i>');
+      // 尝试加载同名专辑封面（/api/songs/:id/cover），加载失败回退默认音乐图标
+      var coverUrl = '/api/songs/' + encodeURIComponent(song.id) + '/cover';
+      $(this.options.coverEl).html(
+        '<img src="' + coverUrl + '" alt="" style="width:100%;height:100%;object-fit:cover;display:none;" ' +
+        'onload="this.style.display=\'block\'" ' +
+        'onerror="this.parentNode.innerHTML=\'<i class=\\\'fas fa-music\\\'></i>\'">'
+      );
 
       audio.src = '/api/songs/' + encodeURIComponent(song.id) + '/stream';
       audio.load();

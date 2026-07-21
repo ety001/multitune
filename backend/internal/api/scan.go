@@ -18,9 +18,10 @@ type scanRequest struct {
 
 // error codes for scan API
 const (
-	ErrCodeScanBusy        = 4003
-	ErrCodeSongNotFound    = 3001
-	ErrCodeSongNotReadable = 3002
+	ErrCodeScanBusy          = 4003
+	ErrCodeSongNotFound      = 3001
+	ErrCodeSongNotReadable   = 3002
+	ErrCodeSongCoverNotFound = 3003
 )
 
 // ScanSongs POST /api/scan
