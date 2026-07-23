@@ -2,20 +2,25 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>播放器 - 多音盒</title>
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="./lib/bootstrap/css/bootstrap.min.css?v=3">
   <link rel="stylesheet" href="./lib/fontawesome/css/all.min.css?v=4">
-  <link rel="stylesheet" href="./css/simple.css?v=6">
+  <link rel="stylesheet" href="./css/simple.css?v=13">
 </head>
 <body class="simple-body">
+  <!-- 音量弹层透明背景（点击关闭弹层） -->
+  <div class="volume-backdrop" id="volumeBackdrop"></div>
   <header class="player-header">
     <div class="container-fluid">
       <div class="row">
         <div class="col-xs-4 text-left header-side">
-          <button class="btn header-nav-btn" id="btnSwitchIdentity">切换身份</button>
-          <button class="btn header-nav-btn" id="btnSwitchPlaylist">切换歌单</button>
+          <span class="hidden-xs">
+            <button class="btn header-nav-btn" id="btnSwitchIdentity">切换身份</button>
+            <button class="btn header-nav-btn" id="btnSwitchPlaylist">切换歌单</button>
+          </span>
+          <button class="btn header-nav-btn visible-xs-inline-block" id="btnMenu" title="菜单"><i class="fas fa-bars"></i></button>
         </div>
         <div class="col-xs-4 text-center header-center">
           <div class="header-title">正在播放</div>
@@ -49,18 +54,40 @@
 
       <div class="player-controls-row row">
         <div class="col-xs-3 text-left player-controls-side">
-          <button class="player-control-btn" id="btnMode" title="切换播放模式"><i class="fas" id="modeIcon"></i></button>
+          <button class="player-control-btn" id="btnMode" title="切换播放模式"><i class="fas fa-arrow-right" id="modeIcon"></i></button>
         </div>
         <div class="col-xs-6 text-center player-controls-center">
-          <button class="player-control-btn" id="btnPrev" title="上一曲"><i class="fas fa-step-backward"></i></button>
-          <button class="player-control-btn large" id="btnPlay" title="播放/暂停"><i class="fas fa-play"></i></button>
-          <button class="player-control-btn" id="btnNext" title="下一曲"><i class="fas fa-step-forward"></i></button>
+          <span class="player-controls-group">
+            <button class="player-control-btn" id="btnPrev" title="上一曲"><i class="fas fa-step-backward"></i></button>
+            <button class="player-control-btn large" id="btnPlay" title="播放/暂停"><i class="fas fa-play"></i></button>
+            <button class="player-control-btn" id="btnNext" title="下一曲"><i class="fas fa-step-forward"></i></button>
+          </span>
         </div>
-        <div class="col-xs-3 text-right player-controls-side">
+        <div class="col-xs-3 text-right player-controls-side player-volume-side">
           <div class="player-volume-inline" title="音量">
-            <i class="fas fa-volume-up"></i>
+            <i class="fas fa-volume-up volume-trigger" id="volumeIcon"></i>
             <input type="range" id="volumeBar" min="0" max="100" value="100">
+            <!-- 窄屏音量弹层：点击 icon 向上弹出竖向滑块 -->
+            <div class="volume-popover" id="volumePopover">
+              <input type="range" id="volumeBarVertical" min="0" max="100" value="100" class="vertical-range">
+            </div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 菜单弹层（窄屏顶栏菜单图标触发） -->
+  <div class="modal fade" id="menuModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="关闭"><span aria-hidden="true">&times;</span></button>
+          <h4 class="modal-title">菜单</h4>
+        </div>
+        <div class="modal-body">
+          <button type="button" class="btn btn-block menu-action-btn" id="btnMenuIdentity">切换身份</button>
+          <button type="button" class="btn btn-block menu-action-btn" id="btnMenuPlaylist">切换歌单</button>
         </div>
       </div>
     </div>
@@ -117,7 +144,7 @@
   <script src="./js/jquery-3.7.1.min.js?v=3"></script>
   <script src="./lib/bootstrap/js/bootstrap.min.js?v=3"></script>
   <script src="./js/app.js?v=4"></script>
-  <script src="./js/player.js?v=6"></script>
+  <script src="./js/player.js?v=9"></script>
   <script>
     (function() {
       window.MultiTunePlayer.init({

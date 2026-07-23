@@ -6,7 +6,11 @@
    这里只是保证 body 背景铺满自身视口，并消除老 WebView 的默认 body margin。 */
 html, body {
   width: 100%;
+  /* 100dvh 适配手机浏览器地址栏伸缩（dvh 动态跟随地址栏显隐）。
+     不支持 dvh 的（车机 WebView 74）回退到 100vh，再不支持回退到 100%。 */
   height: 100%;
+  height: 100vh;
+  height: 100dvh;
   margin: 0;
   padding: 0;
   background: #0f172a;
@@ -36,6 +40,8 @@ input:focus,
 
 .simple-body {
   min-height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* 顶部导航 */
@@ -168,6 +174,16 @@ input:focus,
 
 .player-controls-center {
   white-space: nowrap;
+  /* 按钮组居中：用 text-align:center 让整组 inline-block 居中，
+     内部三按钮紧邻排列（无 margin），large 按钮自然在几何中心。
+     不用 flexbox（AGENTS.md F2 禁止），用 inline-block 流。 */
+  text-align: center;
+}
+
+/* 按钮组容器：inline-block 才能被 text-align:center 居中，
+   且内部按钮按 inline-block 流排列。 */
+.player-controls-group {
+  display: inline-block;
 }
 
 .player-control-btn {
@@ -175,7 +191,7 @@ input:focus,
   vertical-align: middle;
   width: 64px;
   height: 64px;
-  margin: 0 12px;
+  margin: 0 6px;
   border-radius: 50%;
   border: none;
   background: #6366f1;
@@ -297,6 +313,7 @@ input:focus,
   margin-left: 16px;
   color: #94a3b8;
   white-space: nowrap;
+  position: relative; /* 音量弹层定位基准 */
 }
 
 .player-volume-inline i {
@@ -441,7 +458,15 @@ input:focus,
   }
 }
 
-.playlist-select-item,
+/* 歌单选择项：自由高度，两行结构（名称 + 歌曲数），允许"上次播放"徽标正常布局。
+   注意：不能和 .song-list-item 共用固定行高规则，否则两行被裁、徽标错位。 */
+.playlist-select-item {
+  padding: 14px 16px;
+  background: rgba(148, 163, 184, 0.08);
+  color: #e2e8f0;
+}
+
+/* 播放列表项：固定行高，虚拟列表需要（行高恒定才能算滚动偏移） */
 .song-list-item {
   height: 56px;
   line-height: 56px;
@@ -522,12 +547,14 @@ input:focus,
     height: 56px;
     line-height: 56px;
     margin: 0 8px;
+    font-size: 20px;
   }
 
   .player-control-btn.large {
     width: 72px;
     height: 72px;
     line-height: 72px;
+    font-size: 26px;
   }
 }
 
@@ -609,4 +636,212 @@ input:focus,
 .identity-select-item.disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* 菜单弹层内按钮（竖排大按钮） */
+.menu-action-btn {
+  display: block;
+  width: 100%;
+  padding: 16px;
+  margin-bottom: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #e2e8f0;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 10px;
+  text-align: center;
+}
+.menu-action-btn:hover,
+.menu-action-btn:active {
+  background: rgba(99, 102, 241, 0.28);
+  border-color: rgba(99, 102, 241, 0.55);
+  color: #fff;
+}
+
+/* 音量弹层（窄屏：点击音量icon向上弹出竖向滑块） */
+.volume-trigger {
+  cursor: pointer;
+}
+.volume-popover {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 12px;
+  padding: 16px 10px;
+  background: #1e293b;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  z-index: 1000;
+  /* 用绝对定位避免影响布局流 */
+}
+.volume-popover.open {
+  display: block;
+}
+/* 竖向音量滑杆。
+   必须用高优先级选择器覆盖 .player-volume-inline input[type="range"] 的横向
+   样式（width/height/-webkit-appearance），否则滑杆外观是水平的、但
+   writing-mode 让浏览器按纵向处理交互，表现为"横向拖动没反应、游标错位"。
+   老 WebView（车机 74）：忽略 appearance 标准属性，取 -webkit-appearance:
+   slider-vertical 原生竖向；现代浏览器：后声明的 appearance:none 生效，
+   配合 writing-mode: vertical-lr 渲染自定义竖向滑杆。 */
+.volume-popover input[type="range"].vertical-range {
+  -webkit-appearance: slider-vertical;
+  appearance: none;
+  writing-mode: vertical-lr;
+  /* vertical-lr 下值沿块轴从上到下递增（顶=0 底=100），与音量推子
+     直觉相反；direction:rtl 反转为顶=100 底=0 */
+  direction: rtl;
+  width: 8px;
+  height: 120px;
+  padding: 0;
+  margin: 0;
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 4px;
+}
+
+.volume-popover input[type="range"].vertical-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  cursor: pointer;
+}
+
+.volume-popover input[type="range"].vertical-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  cursor: pointer;
+  border: none;
+}
+/* 弹层透明背景（点击外部关闭弹层） */
+.volume-backdrop {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 999;
+  background: transparent;
+}
+.volume-backdrop.open {
+  display: block;
+}
+
+/* 窄屏（≤767px）：隐藏控制栏右栏的横向音量滑块，只留音量icon。
+   点 icon 弹出竖向滑块。宽屏（车机/平板）保持横向滑块不变。 */
+@media (max-width: 767px) {
+  .player-volume-side .player-volume-inline input[type="range"]:not(.vertical-range) {
+    display: none;
+  }
+  /* 窄屏去掉音量容器左 margin，避免 icon 溢出右栏可视区 */
+  .player-volume-side .player-volume-inline {
+    margin-left: 0;
+  }
+  /* 横向滑杆隐藏后 icon 右 margin 失去意义，且会让容器比 icon 宽，
+     导致 right:0 锚定的弹层中心偏离 icon 中心；去掉使容器宽=icon 宽 */
+  .player-volume-side .player-volume-inline i {
+    margin-right: 0;
+  }
+  /* 弹层相对容器（=icon）水平居中，与音量 icon 左右对齐 */
+  .volume-popover {
+    right: 50%;
+    -webkit-transform: translateX(50%);
+    transform: translateX(50%);
+  }
+}
+
+/* 超小屏（≤480px，如 iPhone SE）：按钮进一步缩小 + 缩小封面/padding
+   防止内容溢出视口导致滚动（SE 视口仅 568px，内容原约 600px）。 */
+@media (max-width: 480px) {
+  /* 按钮再缩一档（仍 ≥44px 触控友好） */
+  .player-control-btn {
+    width: 48px;
+    height: 48px;
+    line-height: 48px;
+    margin: 0 4px;
+    font-size: 18px;
+  }
+  .player-control-btn.large {
+    width: 60px;
+    height: 60px;
+    line-height: 60px;
+    font-size: 22px;
+  }
+
+  /* 缩小封面省高度 */
+  .player-cover {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 16px;
+  }
+
+  /* 缩小 player-info 上下 padding 省高度 */
+  .player-info {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  /* 控制行改为绝对定位布局。
+     原因：table 自动布局下，中间三按钮为 nowrap 内容（宽 180px+），
+     超出 col-xs-6 的 50% 列宽（320px 视口下仅约 150px），整行被撑出
+     视口右侧，导致播放键偏离屏幕中心、音量图标被挤出屏幕。
+     改为：整行 position:relative，按钮组相对全行水平居中（播放键严格
+     位于屏幕水平中心），模式/音量分别贴左右边缘并垂直居中。 */
+  .player-controls-row {
+    display: block;
+    position: relative;
+    height: 72px;
+    margin-left: 0;
+    margin-right: 0;
+    padding: 0;
+  }
+
+  .player-controls-row > [class*="col-"] {
+    display: block;
+    float: none;
+    width: auto;
+    padding: 0;
+  }
+
+  .player-controls-center,
+  .player-controls-side {
+    position: absolute;
+    top: 50%;
+    -webkit-transform: translateY(-50%);
+    transform: translateY(-50%);
+  }
+
+  .player-controls-center {
+    left: 0;
+    right: 0; /* left+right 拉伸至全行宽（[class*=col-] 的 width:auto 优先级更高，width:100% 不生效） */
+    text-align: center;
+    /* 中栏全宽但自身不拦截点击，让两侧按钮区域可点。
+       注意：不能改用 z-index 抬高侧栏——position+z-index 会给侧栏创建
+       层叠上下文，把音量弹层（z-index:1000）压到全屏音量 backdrop
+       （z-index:999）之下，导致弹层内滑杆完全点不动。 */
+    pointer-events: none;
+  }
+
+  .player-controls-center .player-controls-group {
+    pointer-events: auto;
+  }
+
+  .player-controls-row > .player-controls-side:first-child {
+    left: 0;
+  }
+
+  .player-volume-side {
+    right: 0;
+    /* translateY 会给侧栏创建层叠上下文，使内部的音量弹层
+       （z-index:1000）被压到全屏音量 backdrop（z-index:999）之下，
+       滑杆点不动。把整个音量侧栏抬到 backdrop 之上解决
+       （侧栏只有音量 icon 和弹层，无其他元素受影响）。 */
+    z-index: 1001;
+  }
 }

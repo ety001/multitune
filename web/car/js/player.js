@@ -23,7 +23,9 @@
     init: function(options) {
       this.options = options;
       this.mode = 'order';
-      this.bindVolume();
+      // bindVolume 用 try-catch 包裹：即使音量弹层绑定出错，也不能阻塞
+      // 后续 bindEvents（播放/暂停/上下曲等核心按钮），否则页面会卡死无响应。
+      try { this.bindVolume(); } catch (e) { /* 忽略音量绑定错误 */ }
       this.bindEvents();
       this.bindKeyboard();
       this.loadData();
@@ -259,6 +261,25 @@
         });
       }
 
+      // 菜单图标（窄屏）：打开菜单弹层
+      $('#btnMenu').on('click', function() {
+        $('#menuModal').modal('show');
+      });
+      // 菜单弹层内按钮：先关菜单弹层，再开对应 modal（bootstrap 3 不支持同时多 modal）
+      $('#btnMenuIdentity').on('click', function() {
+        $('#menuModal').modal('hide');
+        if (!self.loading) { self.openIdentityModal(); }
+      });
+      $('#btnMenuPlaylist').on('click', function() {
+        $('#menuModal').modal('hide');
+        if (self.loading) { return; }
+        if (self.options.identityId) {
+          self.openPlaylistModal(self.options.identityId);
+        } else {
+          self.openIdentityModal();
+        }
+      });
+
       if (this.options.retryLoadBtn) {
         $(this.options.retryLoadBtn).on('click', function() {
           self.hasUserInteracted = true;
@@ -325,10 +346,37 @@
     bindVolume: function() {
       var self = this;
       var audio = $(this.options.audioEl)[0];
+      // 同步音量到 audio + 所有 range 控件（横向 #volumeBar + 竖向 #volumeBarVertical）
+      function syncVolume(val) {
+        var v = parseInt(val, 10) || 0;
+        audio.volume = v / 100;
+        var $main = $(self.options.volumeBar);
+        var $vert = $('#volumeBarVertical');
+        if ($main.length && $main[0].value != v) { $main[0].value = v; }
+        if ($vert.length && $vert[0].value != v) { $vert[0].value = v; }
+      }
       $(this.options.volumeBar).on('input change', function() {
-        var val = parseInt(this.value, 10) || 0;
-        audio.volume = val / 100;
+        syncVolume(this.value);
       });
+      $('#volumeBarVertical').on('input change', function() {
+        syncVolume(this.value);
+      });
+
+      // 窄屏音量弹层：点 icon 显示/隐藏竖向滑块，点 backdrop 关闭
+      var $popover = $('#volumePopover');
+      var $backdrop = $('#volumeBackdrop');
+      $('#volumeIcon').on('click', function(e) {
+        $popover.toggleClass('open');
+        $backdrop.toggleClass('open', $popover.hasClass('open'));
+        e.stopPropagation();
+      });
+      // backdrop 点击关闭弹层（range 拖拽不会触发，因为 backdrop 只监听 mousedown 起始）
+      $backdrop.on('click', function() {
+        $popover.removeClass('open');
+        $backdrop.removeClass('open');
+      });
+      // 阻止弹层内部点击冒泡到 backdrop
+      $popover.on('click', function(e) { e.stopPropagation(); });
     },
 
     // 取某下标的歌曲详情（可能为 undefined，调用方需判断）
