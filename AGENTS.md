@@ -237,10 +237,19 @@ if count != len(ids) {
 
 ### 9. 路径访问范围
 
-应用不再锁定 `MEDIA_ROOT`，文件浏览器和扫描/流接口均可访问容器文件系统内的任意路径。
-- 后端不再对路径做 `MEDIA_ROOT` 沙箱校验；
+应用不锁定 `MEDIA_ROOT`，但路径访问范围按部署模式区分：
+
+**非懒猫部署（`LAZYCAT_DEPLOY` 未开启）**：
+- 文件浏览器和扫描接口可访问容器文件系统内的任意路径；
 - 访问控制交给部署方通过容器挂载、反向代理或网关自行限制；
 - 代码中保留对路径不存在、非目录等 IO 错误的正常处理。
+
+**懒猫部署（`LAZYCAT_DEPLOY=true`）**：
+- 当前用户从 lzc-ingress 注入的可信 header `X-HC-User-ID` 读取（`X-HC-*` 由网关先清空再注入，客户端无法伪造）；
+- 文件浏览器与扫描接口仅允许访问：媒体目录（默认 `/lzcapp/media`，可用 `LAZYCAT_MEDIA_ROOT` 覆盖）+ 当前用户自己的文档目录（默认 `/lzcapp/document/<username>`，可用 `LAZYCAT_DOCUMENT_ROOT` 覆盖文档根）；
+- 用户名必须通过 `fsutil.ValidateUsername` 白名单校验（`^[A-Za-z0-9._-]+$`）后才能拼入路径，防止路径成分注入；无有效用户名时 fs/scan 接口返回 401 + `ErrCodeUserNotIdentified`；
+- 路径校验用 `fsutil.IsPathAllowed` 的严格路径段前缀匹配（`/a/b` 不匹配根 `/a/bx`，`..` 先 Clean 再比较）；
+- 开发机直连调试（无 ingress 注入 header）时，可设 `LAZYCAT_USERNAME` 环境变量模拟用户，生产环境不得设置。
 
 ### 10. Update 不应修改非目标字段
 

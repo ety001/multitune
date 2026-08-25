@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
-	"strings"
 
 	"github.com/ety001/multitune/internal/fsutil"
 	"github.com/ety001/multitune/internal/model"
@@ -16,26 +15,37 @@ import (
 const (
 	ErrCodeStorageSourceNotFound = 4001
 	ErrCodePathNotAccessible     = 4002
+	ErrCodeUserNotIdentified     = 4005
 )
 
 // ListStorageSources GET /api/fs/sources
-// 不再限定媒体根目录，始终返回根目录源，前端可从此进入任意目录。
+// 懒猫部署时按当前登录用户返回可用存储源：媒体目录（全体共享）与
+// 该用户自己的文档目录（/lzcapp/document/<username>）。
 func (h *Handler) ListStorageSources(c *gin.Context) {
 	var sources []map[string]interface{}
 
 	if h.cfg.LazyCatDeploy {
+		if _, err := h.lazycatAllowedRoots(c); err != nil {
+			c.JSON(http.StatusUnauthorized, model.APIResponse{
+				Code:    ErrCodeUserNotIdentified,
+				Message: "无法识别当前用户，拒绝访问文件系统",
+			})
+			return
+		}
+
+		docDir := filepath.Join(h.cfg.LazyCatDocumentRoot, h.lazycatUsername(c))
 		sources = []map[string]interface{}{
-			{
-				"id":        "document",
-				"name":      "文档",
-				"path":      "/lzcapp/document",
-				"available": true,
-			},
 			{
 				"id":        "media",
 				"name":      "媒体",
-				"path":      "/lzcapp/media",
-				"available": true,
+				"path":      h.cfg.LazyCatMediaRoot,
+				"available": fsutil.IsDirReadable(h.cfg.LazyCatMediaRoot),
+			},
+			{
+				"id":        "document",
+				"name":      "我的文档",
+				"path":      docDir,
+				"available": fsutil.IsDirReadable(docDir),
 			},
 		}
 	} else {
@@ -60,18 +70,28 @@ func (h *Handler) ListStorageSources(c *gin.Context) {
 }
 
 // ListDirectory GET /api/fs/list
-// path 为空时默认列出根目录；不再做 MEDIA_ROOT 沙箱校验。
+// path 为空时默认列出根目录。懒猫部署时仅允许访问当前用户的文档目录与媒体目录。
 func (h *Handler) ListDirectory(c *gin.Context) {
 	path := c.Query("path")
 	if path == "" {
 		path = "/"
 	}
 
+	var roots []string
 	if h.cfg.LazyCatDeploy {
-		if path == "/" {
-			path = "/lzcapp"
+		allowed, err := h.lazycatAllowedRoots(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, model.APIResponse{
+				Code:    ErrCodeUserNotIdentified,
+				Message: "无法识别当前用户，拒绝访问文件系统",
+			})
+			return
 		}
-		if !strings.HasPrefix(path, "/lzcapp") {
+		roots = allowed
+		if path == "/" {
+			path = allowed[0]
+		}
+		if !fsutil.IsPathAllowed(path, allowed) {
 			c.JSON(http.StatusBadRequest, model.APIResponse{
 				Code:    ErrCodePathNotAccessible,
 				Message: "无权限访问该路径",
@@ -101,8 +121,9 @@ func (h *Handler) ListDirectory(c *gin.Context) {
 	if parent == path || parent == "" {
 		parent = path
 	}
-	if h.cfg.LazyCatDeploy && parent == "/" {
-		parent = "/lzcapp"
+	// 懒猫部署下上级目录若越出允许范围，则停在当前目录（前端据此禁用"上级"按钮）
+	if h.cfg.LazyCatDeploy && !fsutil.IsPathAllowed(parent, roots) {
+		parent = path
 	}
 
 	c.JSON(http.StatusOK, model.APIResponse{
@@ -120,4 +141,26 @@ func (h *Handler) ListDirectory(c *gin.Context) {
 func (h *Handler) SearchSongs(c *gin.Context) {
 	// 复用 /api/songs 的搜索能力
 	h.ListSongs(c)
+}
+
+// lazycatUsername 取当前懒猫登录用户名。
+// LAZYCAT_USERNAME 仅用于开发机直连调试时模拟用户；生产流量经 lzc-ingress，
+// 其注入的 X-HC-User-ID 可信（ingress 会先清空客户端伪造的 X-HC-* 再注入）。
+func (h *Handler) lazycatUsername(c *gin.Context) string {
+	if h.cfg.LazyCatUsername != "" {
+		return h.cfg.LazyCatUsername
+	}
+	return c.GetHeader("X-HC-User-ID")
+}
+
+// lazycatAllowedRoots 返回当前用户允许访问的根目录集合：
+// 媒体目录 + 该用户自己的文档目录。用户名缺失或含路径成分时拒绝。
+func (h *Handler) lazycatAllowedRoots(c *gin.Context) ([]string, error) {
+	username := h.lazycatUsername(c)
+	if !fsutil.ValidateUsername(username) {
+		slog.Warn("拒绝无法识别的懒猫用户", "username", username)
+		return nil, fsutil.ErrInvalidUsername
+	}
+	docRoot := filepath.Join(h.cfg.LazyCatDocumentRoot, username)
+	return []string{h.cfg.LazyCatMediaRoot, docRoot}, nil
 }
