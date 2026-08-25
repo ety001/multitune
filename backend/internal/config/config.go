@@ -20,6 +20,9 @@ type Config struct {
 	GINMode                 string
 	StaticPath              string
 	LazyCatDeploy           bool
+	LazyCatUsername         string
+	LazyCatDocumentRoot     string
+	LazyCatMediaRoot        string
 }
 
 // Load 从环境变量加载配置
@@ -37,6 +40,9 @@ func Load() *Config {
 		GINMode:                 getEnv("GIN_MODE", "release"),
 		StaticPath:              getEnv("STATIC_PATH", "/app/static"),
 		LazyCatDeploy:           getEnvBool("LAZYCAT_DEPLOY", false),
+		LazyCatUsername:         getEnv("LAZYCAT_USERNAME", ""),
+		LazyCatDocumentRoot:     getEnv("LAZYCAT_DOCUMENT_ROOT", "/lzcapp/document"),
+		LazyCatMediaRoot:        getEnv("LAZYCAT_MEDIA_ROOT", "/lzcapp/media"),
 	}
 
 	if _, err := strconv.Atoi(cfg.Port); err != nil {

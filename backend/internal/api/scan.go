@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/ety001/multitune/internal/fsutil"
 	"github.com/ety001/multitune/internal/model"
 	"github.com/ety001/multitune/internal/scanner"
 	"github.com/gin-gonic/gin"
@@ -32,6 +33,10 @@ func (h *Handler) ScanSongs(c *gin.Context) {
 			Code:    ErrCodePathNotAccessible,
 			Message: "路径不能为空",
 		})
+		return
+	}
+
+	if !h.authorizeScanPaths(c, []string{req.Path}) {
 		return
 	}
 
@@ -132,6 +137,32 @@ func parseInt(s string, defaultValue int) int {
 	return n
 }
 
+// authorizeScanPaths 懒猫部署时校验所有扫描路径均在当前用户允许范围内
+// （媒体目录 + 自己的文档目录），防止绕过文件浏览器直接扫描其他用户目录。
+func (h *Handler) authorizeScanPaths(c *gin.Context, paths []string) bool {
+	if !h.cfg.LazyCatDeploy {
+		return true
+	}
+	roots, err := h.lazycatAllowedRoots(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, model.APIResponse{
+			Code:    ErrCodeUserNotIdentified,
+			Message: "无法识别当前用户，拒绝访问文件系统",
+		})
+		return false
+	}
+	for _, p := range paths {
+		if !fsutil.IsPathAllowed(p, roots) {
+			c.JSON(http.StatusBadRequest, model.APIResponse{
+				Code:    ErrCodePathNotAccessible,
+				Message: "无权限访问该路径: " + p,
+			})
+			return false
+		}
+	}
+	return true
+}
+
 // createScanJobRequest 创建扫描任务请求
 type createScanJobRequest struct {
 	Paths      []string `json:"paths" binding:"required"`
@@ -154,6 +185,10 @@ func (h *Handler) CreateScanJob(c *gin.Context) {
 			Code:    4001,
 			Message: "至少选择一个路径",
 		})
+		return
+	}
+
+	if !h.authorizeScanPaths(c, req.Paths) {
 		return
 	}
 
@@ -185,14 +220,15 @@ func (h *Handler) CreateScanJob(c *gin.Context) {
 		return
 	}
 
-	// 异步执行扫描
-	go h.runScanJob(job, req.Paths)
-
+	// 先完成响应序列化，再启动后台任务：
+	// runScanJob 会写 job 字段，与 c.JSON 的读并发会构成数据竞争。
 	c.JSON(http.StatusOK, model.APIResponse{
 		Code:    0,
 		Message: "ok",
 		Data:    job,
 	})
+
+	go h.runScanJob(job, req.Paths)
 }
 
 // GetScanJob GET /api/scan/jobs/:id

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -14,6 +15,37 @@ var ErrPathNotFound = fmt.Errorf("路径不存在")
 
 // ErrNotADirectory 路径不是目录
 var ErrNotADirectory = fmt.Errorf("路径不是目录")
+
+// ErrInvalidUsername 用户名包含路径成分，不允许拼入路径
+var ErrInvalidUsername = fmt.Errorf("用户名不合法")
+
+// validUsernameRegexp 懒猫用户名限定为字母、数字、点、下划线、连字符，
+// 防止用户名携带路径分隔符或 .. 逃逸出用户目录。
+var validUsernameRegexp = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+// ValidateUsername 校验用户名可安全用于拼接路径
+func ValidateUsername(username string) bool {
+	if username == "" || username == "." || username == ".." {
+		return false
+	}
+	return validUsernameRegexp.MatchString(username)
+}
+
+// IsPathAllowed 检查 path 是否位于任一允许根目录之内（含根自身）。
+// 使用严格路径段前缀匹配：/a/bcd 不会匹配根 /a/b，".." 由 Clean 归一化后再比较。
+func IsPathAllowed(path string, roots []string) bool {
+	clean := filepath.Clean(path)
+	for _, root := range roots {
+		r := filepath.Clean(root)
+		if clean == r {
+			return true
+		}
+		if strings.HasPrefix(clean, r+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
 
 // audioExtensions 支持的音频格式
 var audioExtensions = map[string]bool{
@@ -98,8 +130,8 @@ func ListDirectory(path string) ([]DirEntry, error) {
 	return items, nil
 }
 
-// isAccessible 检查路径是否可读
-func isAccessible(path string) bool {
+// IsDirReadable 检查路径存在、是目录且可读
+func IsDirReadable(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {
 		return false
