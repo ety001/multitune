@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/ety001/multitune/internal/config"
@@ -18,6 +19,7 @@ func newTestHandler(t *testing.T) *Handler {
 	t.Helper()
 	cfg := &config.Config{
 		DataPath:                t.TempDir(),
+		CachePath:               filepath.Join(t.TempDir(), "cache"),
 		DatabaseName:            "test.db",
 		MaxIdentities:           20,
 		MaxPlaylistsPerIdentity: 50,
@@ -284,6 +286,7 @@ func TestHandler_DeleteIdentity_NotFound(t *testing.T) {
 func TestHandler_CreateIdentity_MaxLimit(t *testing.T) {
 	cfg := &config.Config{
 		DataPath:                t.TempDir(),
+		CachePath:               filepath.Join(t.TempDir(), "cache"),
 		DatabaseName:            "test.db",
 		MaxIdentities:           2,
 		MaxPlaylistsPerIdentity: 50,

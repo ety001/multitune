@@ -454,43 +454,92 @@
 
       $(this.options.titleEl).text(song.title || '未知歌曲');
       $(this.options.artistEl).text(song.artist || '-');
-      // 尝试加载同名专辑封面（/api/songs/:id/cover），加载失败回退默认音乐图标
-      var coverUrl = '/api/songs/' + encodeURIComponent(song.id) + '/cover';
-      $(this.options.coverEl).html(
-        '<img src="' + coverUrl + '" alt="" style="width:100%;height:100%;object-fit:cover;display:none;" ' +
-        'onload="this.style.display=\'block\'" ' +
-        'onerror="this.parentNode.innerHTML=\'<i class=\\\'fas fa-music\\\'></i>\'">'
-      );
+      this.loadCover(song);
 
       audio.src = '/api/songs/' + encodeURIComponent(song.id) + '/stream';
       audio.load();
 
       var self = this;
-      if (startPosition && startPosition > 0) {
-        $(audio).one('loadedmetadata', function() {
-          try {
-            audio.currentTime = startPosition;
-          } catch (e) {
-            // 部分格式不支持精确 seek，忽略
-          }
-        });
-      }
+      var wantPlay = autoPlay || this.hasUserInteracted;
 
-      this.renderSongList();
-
-      if (autoPlay || this.hasUserInteracted) {
-        // 用户交互后才能自动播放，否则等待用户点击
+      function startPlayback() {
+        if (!wantPlay) {
+          self.updatePlayBtn(false);
+          return;
+        }
         var playPromise = audio.play();
         if (playPromise && typeof playPromise.then === 'function') {
           playPromise.catch(function() {
             self.updatePlayBtn(false);
           });
         }
-      } else {
-        this.updatePlayBtn(false);
       }
 
+      if (startPosition && startPosition > 0) {
+        // 续播：先跳转到记忆位置再开始播放。若立即 play()，浏览器会先从
+        // 文件头缓冲、跳转时再放弃并重新发 Range 请求，弱网下双请求互相
+        // 抢占带宽，起播显著变慢。跳转发起后即可 play：输出会等跳转完成。
+        $(audio).off('.resume');
+        $(audio).one('loadedmetadata.resume', function() {
+          try {
+            audio.currentTime = startPosition;
+          } catch (e) {
+            // 部分格式不支持精确 seek，从头播放
+          }
+          startPlayback();
+        });
+        // 兜底：元数据迟迟未到（弱网）时，从头播放总好过一直等待
+        setTimeout(function() {
+          $(audio).off('.resume');
+          startPlayback();
+        }, 8000);
+      } else {
+        startPlayback();
+      }
+
+      this.renderSongList();
       this.saveState(false);
+    },
+
+    // 封面：先显示占位图标，起播后再加载缩略图（WebP，约 10-30KB），
+    // 避免大图与音频在弱网下抢占带宽；缩略图失败回退原图，再失败回退默认图标。
+    loadCover: function(song) {
+      var self = this;
+      var coverEl = this.options.coverEl;
+      var audio = $(this.options.audioEl)[0];
+
+      $(coverEl).html('<i class="fas fa-music"></i>');
+      $(audio).off('.cover');
+      if (this._coverTimer) {
+        clearTimeout(this._coverTimer);
+        this._coverTimer = null;
+      }
+
+      function doLoad() {
+        if (self._coverTimer) {
+          clearTimeout(self._coverTimer);
+          self._coverTimer = null;
+        }
+        $(audio).off('.cover');
+        var thumbUrl = '/api/songs/' + encodeURIComponent(song.id) + '/cover?size=thumb';
+        var fullUrl = '/api/songs/' + encodeURIComponent(song.id) + '/cover';
+        var img = $('<img alt="">').css({ 'width': '100%', 'height': '100%', 'object-fit': 'cover' });
+        var stage = 0;
+        img.on('error', function() {
+          stage += 1;
+          if (stage === 1) {
+            img.attr('src', fullUrl);
+          } else {
+            $(coverEl).html('<i class="fas fa-music"></i>');
+          }
+        });
+        $(coverEl).html(img);
+        img.attr('src', thumbUrl);
+      }
+
+      $(audio).one('playing.cover', doLoad);
+      // 兜底：暂停等待用户操作或事件未触发时，稍后仍加载封面（此时无音频数据竞争）
+      this._coverTimer = setTimeout(doLoad, 6000);
     },
 
     togglePlay: function() {

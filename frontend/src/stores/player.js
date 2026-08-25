@@ -109,14 +109,48 @@ export const usePlayerStore = defineStore('player', () => {
 
       currentSong.value = startSong
       audio.src = '/api/songs/' + startSong.id + '/stream'
-      audio.currentTime = startPosition
-      currentTime.value = startPosition
+      // 续播：先跳转到记忆位置再播放。若立即 play()，浏览器会先从文件头
+      // 缓冲、跳转时再放弃并重新发 Range 请求，弱网下双请求抢占带宽
+      const src = audio.src
+      await seekBeforePlay(startPosition, src)
+      if (seq !== resumeSeq) return // 等待期间已被新的恢复取代
+      currentTime.value = audio.currentTime || startPosition
       await tryPlay()
     } finally {
       if (seq === resumeSeq) {
         resuming.value = false
       }
     }
+  }
+
+  // 续播辅助：等元数据加载后设置 currentTime，再由调用方 play。
+  // 元数据 8 秒未到达（弱网）时放弃等待，从头播放总好过一直等待。
+  // expectedSrc 用于守卫：等待期间被切歌取代时不再设置过期的跳转位置。
+  function seekBeforePlay(startPosition, expectedSrc) {
+    if (!startPosition || startPosition <= 0) return Promise.resolve()
+    return new Promise((resolve) => {
+      let settled = false
+      const done = () => {
+        if (settled) return
+        settled = true
+        audio.removeEventListener('loadedmetadata', onMeta)
+        resolve()
+      }
+      const onMeta = () => {
+        if (audio.src !== expectedSrc) {
+          done()
+          return
+        }
+        try {
+          audio.currentTime = startPosition
+        } catch {
+          // 部分格式不支持精确 seek，从头播放
+        }
+        done()
+      }
+      audio.addEventListener('loadedmetadata', onMeta)
+      setTimeout(done, 8000)
+    })
   }
 
   async function tryPlay() {
@@ -142,7 +176,9 @@ export const usePlayerStore = defineStore('player', () => {
     try {
       loading.value = true
       audio.src = '/api/songs/' + song.id + '/stream'
-      audio.currentTime = startPosition || 0
+      const src = audio.src
+      await seekBeforePlay(startPosition || 0, src)
+      currentTime.value = audio.currentTime || startPosition || 0
       await audio.play()
       isPlaying.value = true
       startAutoSave()
