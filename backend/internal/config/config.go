@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -10,6 +11,7 @@ import (
 type Config struct {
 	Port                    string
 	DataPath                string
+	CachePath               string
 	DatabaseName            string
 	MaxIdentities           int
 	MaxPlaylistsPerIdentity int
@@ -30,6 +32,7 @@ func Load() *Config {
 	cfg := &Config{
 		Port:                    getEnv("PORT", "8080"),
 		DataPath:                getEnv("DATA_PATH", "/app/data"),
+		CachePath:               getEnv("CACHE_PATH", ""),
 		DatabaseName:            getEnv("DATABASE_NAME", "multitune.db"),
 		MaxIdentities:           getEnvInt("MAX_IDENTITIES", 20),
 		MaxPlaylistsPerIdentity: getEnvInt("MAX_PLAYLISTS_PER_IDENTITY", 50),
@@ -59,6 +62,11 @@ func Load() *Config {
 	}
 	if cfg.PlaybackSaveInterval <= 0 {
 		cfg.PlaybackSaveInterval = 5
+	}
+	// 缓存目录未显式配置时，落在数据目录下（懒猫部署应配置 CACHE_PATH
+	// 指向 /lzcapp/cache 挂载，享受独立持久缓存区）
+	if cfg.CachePath == "" {
+		cfg.CachePath = filepath.Join(cfg.DataPath, "cache")
 	}
 
 	return cfg

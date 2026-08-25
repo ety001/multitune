@@ -49,6 +49,7 @@ func newLazycatTestHandler(t *testing.T) (*Handler, string, string) {
 
 	cfg := &config.Config{
 		DataPath:                t.TempDir(),
+		CachePath:               filepath.Join(t.TempDir(), "cache"),
 		DatabaseName:            "test.db",
 		MaxIdentities:           20,
 		MaxPlaylistsPerIdentity: 50,
