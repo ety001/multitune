@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { playbackApi } from '../api/client'
+import { ref, reactive, computed } from 'vue'
+import { playbackApi, songsApi } from '../api/client'
 
 const VOLUME_KEY = 'multitune_volume'
 
@@ -27,6 +27,10 @@ export const usePlayerStore = defineStore('player', () => {
   const loading = ref(false)
   const resuming = ref(false)
   const error = ref(null)
+
+  // 歌曲详情缓存：歌单详情只提供全量 song_ids，详情按需经 /songs/batch 加载
+  const songCache = reactive(new Map())
+  const pendingIds = new Set()
 
   const audio = new Audio()
   audio.preload = 'metadata'
@@ -64,6 +68,43 @@ export const usePlayerStore = defineStore('player', () => {
 
   function setCurrentPlaylist(playlist) {
     currentPlaylist.value = playlist
+    // 歌单详情第一页 songs 直接预热缓存，首屏零额外请求
+    if (playlist && Array.isArray(playlist.songs)) {
+      for (const s of playlist.songs) {
+        if (s) songCache.set(s.id, s)
+      }
+    }
+  }
+
+  // 当前歌单的全量歌曲 ID 有序列表
+  const songIds = computed(() => {
+    const pl = currentPlaylist.value
+    if (!pl) return []
+    if (Array.isArray(pl.song_ids) && pl.song_ids.length > 0) return pl.song_ids
+    if (Array.isArray(pl.songs)) return pl.songs.map((s) => s.id)
+    return []
+  })
+
+  // ensureSongs 批量加载缺失的歌曲详情（分块，每块最多 100，与后端限制一致）
+  async function ensureSongs(ids) {
+    const missing = []
+    for (const id of ids) {
+      if (!id || songCache.has(id) || pendingIds.has(id)) continue
+      pendingIds.add(id)
+      missing.push(id)
+    }
+    if (missing.length === 0) return
+    try {
+      for (let i = 0; i < missing.length; i += 100) {
+        const chunk = missing.slice(i, i + 100)
+        const data = await songsApi.batch(chunk)
+        for (const s of data.songs || []) {
+          songCache.set(s.id, s)
+        }
+      }
+    } finally {
+      for (const id of missing) pendingIds.delete(id)
+    }
   }
 
   // 进入歌单时恢复播放：歌单记忆点决定起始曲目和位置，身份记忆点决定播放模式
@@ -71,7 +112,7 @@ export const usePlayerStore = defineStore('player', () => {
   async function resumePlaylist(playlist, identity) {
     if (!playlist) return
     if (identity) currentIdentity.value = identity
-    currentPlaylist.value = playlist
+    setCurrentPlaylist(playlist)
     resumeSeq += 1
     const seq = resumeSeq
     resuming.value = true
@@ -94,19 +135,29 @@ export const usePlayerStore = defineStore('player', () => {
         mode.value = state.mode
       }
 
-      const songs = playlist.songs || []
-      if (songs.length === 0) return
+      const ids = songIds.value
+      if (ids.length === 0) return
 
-      let startSong = songs[0]
+      let startIdx = 0
       let startPosition = 0
       if (progress && progress.song_id) {
-        const found = songs.find((s) => s.id === progress.song_id)
-        if (found) {
-          startSong = found
+        const idx = ids.indexOf(progress.song_id)
+        if (idx >= 0) {
+          startIdx = idx
           startPosition = progress.position || 0
         }
       }
 
+      // 当前曲与邻近几首预加载详情，起播与首次切歌都无需额外等待
+      const nearby = []
+      for (let i = Math.max(0, startIdx - 1); i <= Math.min(ids.length - 1, startIdx + 2); i++) {
+        nearby.push(ids[i])
+      }
+      await ensureSongs(nearby)
+      if (seq !== resumeSeq) return // 加载期间已被新的恢复取代
+
+      const startSong = songCache.get(ids[startIdx])
+      if (!startSong) return
       currentSong.value = startSong
       audio.src = '/api/songs/' + startSong.id + '/stream'
       // 续播：先跳转到记忆位置再播放。若立即 play()，浏览器会先从文件头
@@ -168,9 +219,10 @@ export const usePlayerStore = defineStore('player', () => {
 
   async function playSong(song, playlist = null, identity = null, startPosition = 0) {
     if (!song) return
-    if (playlist) currentPlaylist.value = playlist
+    if (playlist) setCurrentPlaylist(playlist)
     if (identity) currentIdentity.value = identity
     currentSong.value = song
+    songCache.set(song.id, song)
     error.value = null
 
     try {
@@ -215,13 +267,22 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   function getCurrentIndex() {
-    if (!currentPlaylist.value || !currentSong.value) return -1
-    return currentPlaylist.value.songs.findIndex((s) => s.id === currentSong.value.id)
+    if (!currentSong.value) return -1
+    return songIds.value.indexOf(currentSong.value.id)
+  }
+
+  // playByIndex 索引对应的歌曲（详情缺失时按需加载后播放）
+  async function playByIndex(idx) {
+    const id = songIds.value[idx]
+    if (!id) return
+    await ensureSongs([id])
+    const song = songCache.get(id)
+    if (song) playSong(song)
   }
 
   function next() {
-    if (!currentPlaylist.value || currentPlaylist.value.songs.length === 0) return
-    const len = currentPlaylist.value.songs.length
+    const len = songIds.value.length
+    if (len === 0) return
     let idx = getCurrentIndex()
 
     if (mode.value === 'random') {
@@ -239,13 +300,12 @@ export const usePlayerStore = defineStore('player', () => {
       }
     }
 
-    const song = currentPlaylist.value.songs[idx]
-    if (song) playSong(song)
+    playByIndex(idx)
   }
 
   function prev() {
-    if (!currentPlaylist.value || currentPlaylist.value.songs.length === 0) return
-    const len = currentPlaylist.value.songs.length
+    const len = songIds.value.length
+    if (len === 0) return
     let idx = getCurrentIndex()
 
     if (mode.value === 'random') {
@@ -263,8 +323,7 @@ export const usePlayerStore = defineStore('player', () => {
       }
     }
 
-    const song = currentPlaylist.value.songs[idx]
-    if (song) playSong(song)
+    playByIndex(idx)
   }
 
   function onEnded() {
@@ -349,6 +408,9 @@ export const usePlayerStore = defineStore('player', () => {
     setMode,
     setCurrentIdentity,
     setCurrentPlaylist,
+    songIds,
+    songCache,
+    ensureSongs,
     resumePlaylist,
     playSong,
     togglePlay,

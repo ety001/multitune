@@ -96,6 +96,10 @@ export const scanApi = {
   list: (limit = 20) => api.get('/scan/jobs', { limit }),
 }
 
+export const songsApi = {
+  batch: (ids) => api.post('/songs/batch', { ids }),
+}
+
 export const playbackApi = {
   get: (identityId) => api.get('/playback/' + identityId),
   save: (identityId, body) => api.post('/playback/' + identityId, body),
