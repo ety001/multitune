@@ -311,7 +311,6 @@ function formatBytes(bytes) {
               <td>{{ item.type === 'dir' ? '文件夹' : item.is_audio ? '音频' : '文件' }}</td>
               <td>{{ formatBytes(item.size) }}</td>
               <td>
-                <button v-if="item.type === 'dir'" class="btn btn-secondary btn-small" @click="fileStore.scanPath(item.path)">扫描</button>
                 <button v-if="item.is_audio" class="btn btn-secondary btn-small" @click="playFile(item.path)">播放</button>
               </td>
             </tr>
