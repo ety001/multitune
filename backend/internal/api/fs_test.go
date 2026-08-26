@@ -21,7 +21,9 @@ import (
 //
 //	<tmp>/document/alice/music/a.mp3
 //	<tmp>/document/bob/music/b.mp3
-//	<tmp>/media/music/m.mp3
+//	<tmp>/media/media/music/u.mp3            （USB 挂载）
+//	<tmp>/media/RemoteFS/alice/music/r.mp3    （远程挂载-alice）
+//	<tmp>/media/RemoteFS/bob/music/rb.mp3     （远程挂载-bob）
 func newLazycatTestHandler(t *testing.T) (*Handler, string, string) {
 	t.Helper()
 
@@ -31,20 +33,27 @@ func newLazycatTestHandler(t *testing.T) (*Handler, string, string) {
 	for _, dir := range []string{
 		filepath.Join(docRoot, "alice", "music"),
 		filepath.Join(docRoot, "bob", "music"),
-		filepath.Join(mediaRoot, "music"),
+		filepath.Join(mediaRoot, "media", "music"),
+		filepath.Join(mediaRoot, "RemoteFS", "alice", "music"),
+		filepath.Join(mediaRoot, "RemoteFS", "bob", "music"),
 	} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(docRoot, "alice", "music", "a.mp3"), []byte("a"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(docRoot, "bob", "music", "b.mp3"), []byte("b"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(mediaRoot, "music", "m.mp3"), []byte("m"), 0644); err != nil {
-		t.Fatal(err)
+	for _, f := range []struct {
+		path    string
+		content string
+	}{
+		{filepath.Join(docRoot, "alice", "music", "a.mp3"), "a"},
+		{filepath.Join(docRoot, "bob", "music", "b.mp3"), "b"},
+		{filepath.Join(mediaRoot, "media", "music", "u.mp3"), "u"},
+		{filepath.Join(mediaRoot, "RemoteFS", "alice", "music", "r.mp3"), "r"},
+		{filepath.Join(mediaRoot, "RemoteFS", "bob", "music", "rb.mp3"), "rb"},
+	} {
+		if err := os.WriteFile(f.path, []byte(f.content), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	cfg := &config.Config{
@@ -118,15 +127,18 @@ func TestLazycat_ListStorageSources(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("解析响应失败: %v", err)
 	}
-	if resp.Code != 0 || resp.Data.Total != 2 {
-		t.Fatalf("应返回 2 个存储源，got code=%d total=%d", resp.Code, resp.Data.Total)
+	if resp.Code != 0 || resp.Data.Total != 3 {
+		t.Fatalf("应返回 3 个存储源，got code=%d total=%d", resp.Code, resp.Data.Total)
 	}
 	byID := map[string]string{}
 	for _, s := range resp.Data.Items {
 		byID[s.ID] = s.Path
 	}
-	if byID["media"] != mediaRoot {
-		t.Errorf("媒体源路径错误: got %s, want %s", byID["media"], mediaRoot)
+	if byID["remotefs"] != filepath.Join(mediaRoot, "RemoteFS", "alice") {
+		t.Errorf("远程挂载源路径错误: got %s, want %s", byID["remotefs"], filepath.Join(mediaRoot, "RemoteFS", "alice"))
+	}
+	if byID["usb"] != filepath.Join(mediaRoot, "media") {
+		t.Errorf("USB 挂载源路径错误: got %s, want %s", byID["usb"], filepath.Join(mediaRoot, "media"))
 	}
 	if byID["document"] != filepath.Join(docRoot, "alice") {
 		t.Errorf("文档源路径错误: got %s, want %s", byID["document"], filepath.Join(docRoot, "alice"))
@@ -185,11 +197,16 @@ func TestLazycat_ListDirectory(t *testing.T) {
 		{"访问别人的文档根", "alice", filepath.Join(docRoot, "bob"), http.StatusBadRequest},
 		{"访问文档总根", "alice", docRoot, http.StatusBadRequest},
 		{"前缀相似目录不可绕过", "alice", filepath.Join(docRoot, "alice2"), http.StatusBadRequest},
-		{"访问媒体目录", "alice", filepath.Join(mediaRoot, "music"), http.StatusOK},
+		{"访问自己的远程挂载目录", "alice", filepath.Join(mediaRoot, "RemoteFS", "alice", "music"), http.StatusOK},
+		{"访问别人的远程挂载目录", "alice", filepath.Join(mediaRoot, "RemoteFS", "bob", "music"), http.StatusBadRequest},
+		{"访问远程挂载总根", "alice", filepath.Join(mediaRoot, "RemoteFS"), http.StatusBadRequest},
+		{"访问USB挂载目录", "alice", filepath.Join(mediaRoot, "media", "music"), http.StatusOK},
+		{"媒体总根已不可访问", "alice", mediaRoot, http.StatusBadRequest},
 		{"访问 /lzcapp 上级", "alice", filepath.Dir(docRoot), http.StatusBadRequest},
 		{"访问根路径", "alice", "/", http.StatusOK},
-		{"无用户身份", "", filepath.Join(mediaRoot, "music"), http.StatusUnauthorized},
+		{"无用户身份", "", filepath.Join(mediaRoot, "media", "music"), http.StatusUnauthorized},
 		{"路径穿越逃逸", "alice", docRoot + "/alice/../../bob/music", http.StatusBadRequest},
+		{"远程挂载前缀相似不可绕过", "alice", filepath.Join(mediaRoot, "RemoteFS", "alice2"), http.StatusBadRequest},
 		{"尾部斜杠仍允许", "alice", filepath.Join(docRoot, "alice") + "/", http.StatusOK},
 	}
 
@@ -208,11 +225,11 @@ func TestLazycat_ListDirectory(t *testing.T) {
 	}
 }
 
-func TestLazycat_ListDirectory_DefaultsToMediaAndClampsParent(t *testing.T) {
+func TestLazycat_ListDirectory_DefaultsToFirstRootAndClampsParent(t *testing.T) {
 	h, docRoot, mediaRoot := newLazycatTestHandler(t)
 	r := h.SetupRouter()
 
-	// path="/" 时落到媒体目录
+	// path="/" 时落到第一个允许根（远程挂载的用户目录）
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/fs/list?path=/", nil)
 	req.Header.Set("X-HC-User-ID", "alice")
@@ -228,7 +245,7 @@ func TestLazycat_ListDirectory_DefaultsToMediaAndClampsParent(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("解析响应失败: %v", err)
 	}
-	if resp.Data.Path != mediaRoot {
+	if resp.Data.Path != filepath.Join(mediaRoot, "RemoteFS", "alice") {
 		t.Errorf("根路径应落到媒体目录: got %s, want %s", resp.Data.Path, mediaRoot)
 	}
 
@@ -274,13 +291,25 @@ func TestLazycat_ScanSongs(t *testing.T) {
 	if w := doScan("alice", filepath.Join(docRoot, "bob", "music")); w.Code != http.StatusBadRequest {
 		t.Errorf("扫描他人目录应返回 400，got %d, body: %s", w.Code, w.Body.String())
 	}
+	// 扫描别人的远程挂载目录：拒绝
+	if w := doScan("alice", filepath.Join(mediaRoot, "RemoteFS", "bob", "music")); w.Code != http.StatusBadRequest {
+		t.Errorf("扫描他人远程挂载应返回 400，got %d, body: %s", w.Code, w.Body.String())
+	}
+	// 媒体总根已不再是允许根：拒绝
+	if w := doScan("alice", mediaRoot); w.Code != http.StatusBadRequest {
+		t.Errorf("扫描媒体总根应返回 400，got %d", w.Code)
+	}
 	// 无用户身份：拒绝
-	if w := doScan("", filepath.Join(mediaRoot, "music")); w.Code != http.StatusUnauthorized {
+	if w := doScan("", filepath.Join(mediaRoot, "media", "music")); w.Code != http.StatusUnauthorized {
 		t.Errorf("无用户名应返回 401，got %d", w.Code)
 	}
-	// 扫描媒体目录：允许并成功入库
-	if w := doScan("alice", filepath.Join(mediaRoot, "music")); w.Code != http.StatusOK {
-		t.Errorf("扫描媒体目录应返回 200，got %d, body: %s", w.Code, w.Body.String())
+	// 扫描 USB 挂载目录：允许并成功入库
+	if w := doScan("alice", filepath.Join(mediaRoot, "media", "music")); w.Code != http.StatusOK {
+		t.Errorf("扫描 USB 挂载应返回 200，got %d, body: %s", w.Code, w.Body.String())
+	}
+	// 扫描自己的远程挂载目录：允许
+	if w := doScan("alice", filepath.Join(mediaRoot, "RemoteFS", "alice", "music")); w.Code != http.StatusOK {
+		t.Errorf("扫描自己远程挂载应返回 200，got %d, body: %s", w.Code, w.Body.String())
 	}
 	// 扫描自己的文档目录：允许
 	if w := doScan("alice", filepath.Join(docRoot, "alice", "music")); w.Code != http.StatusOK {
@@ -314,7 +343,11 @@ func TestLazycat_CreateScanJob(t *testing.T) {
 	}
 
 	// 全部路径合法：创建成功
-	w := doCreate("alice", []string{filepath.Join(docRoot, "alice", "music"), filepath.Join(mediaRoot, "music")})
+	w := doCreate("alice", []string{
+		filepath.Join(docRoot, "alice", "music"),
+		filepath.Join(mediaRoot, "media", "music"),
+		filepath.Join(mediaRoot, "RemoteFS", "alice", "music"),
+	})
 	if w.Code != http.StatusOK {
 		t.Fatalf("合法路径应返回 200，got %d, body: %s", w.Code, w.Body.String())
 	}

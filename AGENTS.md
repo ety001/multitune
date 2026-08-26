@@ -247,7 +247,7 @@ if count != len(ids) {
 
 **懒猫部署（`LAZYCAT_DEPLOY=true`）**：
 - 当前用户从 lzc-ingress 注入的可信 header `X-HC-User-ID` 读取（`X-HC-*` 由网关先清空再注入，客户端无法伪造）；
-- 文件浏览器与扫描接口仅允许访问：媒体目录（默认 `/lzcapp/media`，可用 `LAZYCAT_MEDIA_ROOT` 覆盖）+ 当前用户自己的文档目录（默认 `/lzcapp/document/<username>`，可用 `LAZYCAT_DOCUMENT_ROOT` 覆盖文档根）；
+- 文件浏览器与扫描接口仅允许访问三个存储源：远程挂载（`<媒体根>/RemoteFS/<username>`，仅当前用户自己的目录）+ USB 挂载（`<媒体根>/media`，共享；媒体根默认 `/lzcapp/media`，可用 `LAZYCAT_MEDIA_ROOT` 覆盖）+ 当前用户自己的文档目录（默认 `/lzcapp/document/<username>`，可用 `LAZYCAT_DOCUMENT_ROOT` 覆盖文档根）；不再提供笼统的「媒体」根存储源；
 - 用户名必须通过 `fsutil.ValidateUsername` 白名单校验（`^[A-Za-z0-9._-]+$`）后才能拼入路径，防止路径成分注入；无有效用户名时 fs/scan 接口返回 401 + `ErrCodeUserNotIdentified`；
 - 路径校验用 `fsutil.IsPathAllowed` 的严格路径段前缀匹配（`/a/b` 不匹配根 `/a/bx`，`..` 先 Clean 再比较）；
 - 开发机直连调试（无 ingress 注入 header）时，可设 `LAZYCAT_USERNAME` 环境变量模拟用户，生产环境不得设置。
