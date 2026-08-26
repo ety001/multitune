@@ -84,16 +84,23 @@ type StorageSource struct {
 // ScanJob 扫描任务
 // Status: pending -> counting -> scanning -> done / error
 type ScanJob struct {
-	ID         string `json:"id"`
-	PlaylistID string `json:"playlist_id"`
-	Status     string `json:"status"`
-	Total      int    `json:"total"`
-	Current    int    `json:"current"`
-	Added      int    `json:"added"`
-	Updated    int    `json:"updated"`
-	Message    string `json:"message,omitempty"`
-	CreatedAt  int64  `json:"created_at"`
-	UpdatedAt  int64  `json:"updated_at"`
+	ID         string   `json:"id"`
+	PlaylistID string   `json:"playlist_id"`
+	Paths      []string `json:"paths"`
+	Status     string   `json:"status"`
+	Total      int      `json:"total"`
+	Current    int      `json:"current"`
+	Added      int      `json:"added"`
+	Updated    int      `json:"updated"`
+	Message    string   `json:"message,omitempty"`
+	CreatedAt  int64    `json:"created_at"`
+	UpdatedAt  int64    `json:"updated_at"`
+}
+
+// ScanJobWithPlaylist 扫描任务（附目标歌单名，供任务列表展示）
+type ScanJobWithPlaylist struct {
+	ScanJob
+	PlaylistName string `json:"playlist_name"`
 }
 
 // DeviceLog 设备信息日志

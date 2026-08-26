@@ -46,6 +46,9 @@ function goToPlayer() {
           <RouterLink to="/file-browser" :class="{ active: route.path === '/file-browser' }">
             <i class="fas fa-folder-open"></i>文件浏览器
           </RouterLink>
+          <RouterLink to="/scan-jobs" :class="{ active: route.path === '/scan-jobs' }">
+            <i class="fas fa-tasks"></i>扫描任务
+          </RouterLink>
         </nav>
       </div>
     </header>

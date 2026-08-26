@@ -93,6 +93,7 @@ export const fsApi = {
 export const scanApi = {
   createJob: (body) => api.post('/scan/jobs', body),
   getJob: (id) => api.get('/scan/jobs/' + id),
+  list: (limit = 20) => api.get('/scan/jobs', { limit }),
 }
 
 export const playbackApi = {
