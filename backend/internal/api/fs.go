@@ -19,8 +19,8 @@ const (
 )
 
 // ListStorageSources GET /api/fs/sources
-// 懒猫部署时按当前登录用户返回可用存储源：媒体目录（全体共享）与
-// 该用户自己的文档目录（/lzcapp/document/<username>）。
+// 懒猫部署时按当前登录用户返回可用存储源：远程挂载（仅自己的目录）、
+// USB 挂载（共享）与该用户自己的文档目录（/lzcapp/document/<username>）。
 func (h *Handler) ListStorageSources(c *gin.Context) {
 	var sources []map[string]interface{}
 
@@ -33,19 +33,25 @@ func (h *Handler) ListStorageSources(c *gin.Context) {
 			return
 		}
 
-		docDir := filepath.Join(h.cfg.LazyCatDocumentRoot, h.lazycatUsername(c))
+		username := h.lazycatUsername(c)
 		sources = []map[string]interface{}{
 			{
-				"id":        "media",
-				"name":      "媒体",
-				"path":      h.cfg.LazyCatMediaRoot,
-				"available": fsutil.IsDirReadable(h.cfg.LazyCatMediaRoot),
+				"id":        "remotefs",
+				"name":      "远程挂载",
+				"path":      h.lazycatRemoteFSUserRoot(username),
+				"available": fsutil.IsDirReadable(h.lazycatRemoteFSUserRoot(username)),
+			},
+			{
+				"id":        "usb",
+				"name":      "USB 挂载",
+				"path":      h.lazycatUSBRoot(),
+				"available": fsutil.IsDirReadable(h.lazycatUSBRoot()),
 			},
 			{
 				"id":        "document",
 				"name":      "我的文档",
-				"path":      docDir,
-				"available": fsutil.IsDirReadable(docDir),
+				"path":      filepath.Join(h.cfg.LazyCatDocumentRoot, username),
+				"available": fsutil.IsDirReadable(filepath.Join(h.cfg.LazyCatDocumentRoot, username)),
 			},
 		}
 	} else {
@@ -153,8 +159,20 @@ func (h *Handler) lazycatUsername(c *gin.Context) string {
 	return c.GetHeader("X-HC-User-ID")
 }
 
+// lazycatRemoteFSUserRoot 懒猫 enable_media_access 把远程文件系统挂载到
+// <媒体根>/RemoteFS，其下按用户名一目录一用户；返回当前用户的目录。
+func (h *Handler) lazycatRemoteFSUserRoot(username string) string {
+	return filepath.Join(h.cfg.LazyCatMediaRoot, "RemoteFS", username)
+}
+
+// lazycatUSBRoot USB 直连存储挂载在 <媒体根>/media，全体用户共享
+func (h *Handler) lazycatUSBRoot() string {
+	return filepath.Join(h.cfg.LazyCatMediaRoot, "media")
+}
+
 // lazycatAllowedRoots 返回当前用户允许访问的根目录集合：
-// 媒体目录 + 该用户自己的文档目录。用户名缺失或含路径成分时拒绝。
+// 远程挂载（仅自己目录）+ USB 挂载（共享）+ 自己的文档目录。
+// 用户名缺失或含路径成分时拒绝。
 func (h *Handler) lazycatAllowedRoots(c *gin.Context) ([]string, error) {
 	username := h.lazycatUsername(c)
 	if !fsutil.ValidateUsername(username) {
@@ -162,5 +180,5 @@ func (h *Handler) lazycatAllowedRoots(c *gin.Context) ([]string, error) {
 		return nil, fsutil.ErrInvalidUsername
 	}
 	docRoot := filepath.Join(h.cfg.LazyCatDocumentRoot, username)
-	return []string{h.cfg.LazyCatMediaRoot, docRoot}, nil
+	return []string{h.lazycatRemoteFSUserRoot(username), h.lazycatUSBRoot(), docRoot}, nil
 }
