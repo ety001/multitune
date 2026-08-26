@@ -210,7 +210,7 @@ func (h *Handler) CreateScanJob(c *gin.Context) {
 		return
 	}
 
-	job, err := h.scanJobRepo.Create(req.PlaylistID)
+	job, err := h.scanJobRepo.Create(req.PlaylistID, req.Paths)
 	if err != nil {
 		slog.Error("创建扫描任务失败", "error", err)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
@@ -229,6 +229,31 @@ func (h *Handler) CreateScanJob(c *gin.Context) {
 	})
 
 	go h.runScanJob(job, req.Paths)
+}
+
+// ListScanJobs GET /api/scan/jobs?limit=20
+// 按创建时间倒序列出扫描任务（附目标歌单名与扫描路径）。
+func (h *Handler) ListScanJobs(c *gin.Context) {
+	limit := parseInt(c.DefaultQuery("limit", "20"), 20)
+
+	jobs, err := h.scanJobRepo.List(limit)
+	if err != nil {
+		slog.Error("查询扫描任务列表失败", "error", err)
+		c.JSON(http.StatusInternalServerError, model.APIResponse{
+			Code:    9001,
+			Message: "内部错误",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, model.APIResponse{
+		Code:    0,
+		Message: "ok",
+		Data: model.ListResponse{
+			Items: jobs,
+			Total: len(jobs),
+		},
+	})
 }
 
 // GetScanJob GET /api/scan/jobs/:id
