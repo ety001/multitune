@@ -76,6 +76,9 @@ export const usePlaylistStore = defineStore('playlist', () => {
     await playlistApi.removeSong(playlistId, songId)
     if (currentPlaylist.value && currentPlaylist.value.id === playlistId) {
       currentPlaylist.value.songs = currentPlaylist.value.songs.filter((s) => s.id !== songId)
+      if (Array.isArray(currentPlaylist.value.song_ids)) {
+        currentPlaylist.value.song_ids = currentPlaylist.value.song_ids.filter((id) => id !== songId)
+      }
       currentPlaylist.value.song_count = Math.max(0, currentPlaylist.value.song_count - 1)
     }
   }
@@ -85,6 +88,7 @@ export const usePlaylistStore = defineStore('playlist', () => {
     if (currentPlaylist.value && currentPlaylist.value.id === playlistId) {
       const map = new Map(currentPlaylist.value.songs.map((s) => [s.id, s]))
       currentPlaylist.value.songs = songIds.map((id) => map.get(id)).filter(Boolean)
+      currentPlaylist.value.song_ids = songIds.slice()
     }
   }
 

@@ -1,6 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { identityApi } from '../api/client'
 import { usePlaylistStore } from '../stores/playlist'
 import { usePlayerStore } from '../stores/player'
@@ -9,7 +8,6 @@ const props = defineProps({
   id: String,
 })
 
-const router = useRouter()
 const playlistStore = usePlaylistStore()
 const playerStore = usePlayerStore()
 
@@ -20,6 +18,8 @@ const progressRef = ref(null)
 
 onMounted(async () => {
   await loadPlaylist()
+  await nextTick()
+  observeContainer()
 })
 
 watch(() => props.id, async () => {
@@ -30,13 +30,15 @@ async function loadPlaylist() {
   try {
     error.value = null
     resumeError.value = null
-    await playlistStore.fetchPlaylistDetail(props.id, 200, 0)
+    await playlistStore.fetchPlaylistDetail(props.id)
     if (playlistStore.currentPlaylist) {
       playerStore.setCurrentPlaylist(playlistStore.currentPlaylist)
       const identityData = await identityApi.get(playlistStore.currentPlaylist.identity_id)
       identity.value = identityData
       playerStore.setCurrentIdentity(identityData)
       await resumePlayback()
+      // 恢复完成后首屏详情已由 resumePlaylist 的邻近预加载覆盖
+      playerStore.ensureSongs(visibleIds.value).catch(() => {})
     }
   } catch (e) {
     error.value = e.message
@@ -54,20 +56,96 @@ async function resumePlayback() {
   }
 }
 
-function isActiveSong(song) {
-  return playerStore.currentSong && playerStore.currentSong.id === song.id
+// ---- 虚拟列表 ----
+// 行高固定（px），只渲染可视区 ±buffer 行；DOM 数量恒定，万级歌曲不卡
+const ROW_HEIGHT = 44
+const BUFFER = 8
+const scrollContainer = ref(null)
+const scrollTop = ref(0)
+const viewportHeight = ref(600)
+
+const songIds = computed(() => {
+  const pl = playlistStore.currentPlaylist
+  if (!pl) return []
+  if (Array.isArray(pl.song_ids) && pl.song_ids.length > 0) return pl.song_ids
+  if (Array.isArray(pl.songs)) return pl.songs.map((s) => s.id)
+  return []
+})
+
+const total = computed(() => songIds.value.length)
+const startIndex = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW_HEIGHT) - BUFFER))
+const endIndex = computed(() =>
+  Math.min(total.value, Math.ceil((scrollTop.value + viewportHeight.value) / ROW_HEIGHT) + BUFFER)
+)
+const visibleIds = computed(() => songIds.value.slice(startIndex.value, endIndex.value))
+const offsetY = computed(() => startIndex.value * ROW_HEIGHT)
+const totalHeight = computed(() => total.value * ROW_HEIGHT)
+
+function songOf(id) {
+  return playerStore.songCache.get(id)
 }
 
-function playSong(song) {
+function isActiveId(id) {
+  return !!playerStore.currentSong && playerStore.currentSong.id === id
+}
+
+// 滚动时节流触发详情按需加载（ensureSongs 内部有去重，未缺失时零请求）
+let ensureTimer = null
+function onScroll() {
+  if (scrollContainer.value) {
+    scrollTop.value = scrollContainer.value.scrollTop
+  }
+  if (ensureTimer) return
+  ensureTimer = setTimeout(() => {
+    ensureTimer = null
+    const from = Math.max(0, startIndex.value - BUFFER)
+    const to = Math.min(total.value, endIndex.value + BUFFER)
+    playerStore.ensureSongs(songIds.value.slice(from, to)).catch(() => {})
+  }, 150)
+}
+
+// 切歌后滚动定位到当前曲（居中）
+watch(
+  () => (playerStore.currentSong ? playerStore.currentSong.id : null),
+  (id) => {
+    if (!id || !scrollContainer.value) return
+    const idx = songIds.value.indexOf(id)
+    if (idx < 0) return
+    const target = idx * ROW_HEIGHT + ROW_HEIGHT / 2 - viewportHeight.value / 2
+    scrollContainer.value.scrollTo({ top: Math.max(0, target) })
+  }
+)
+
+// 容器尺寸变化时刷新可视范围
+let resizeObserver = null
+function observeContainer() {
+  if (!scrollContainer.value || typeof ResizeObserver === 'undefined') return
+  resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      viewportHeight.value = entry.contentRect.height
+    }
+  })
+  resizeObserver.observe(scrollContainer.value)
+}
+
+onUnmounted(() => {
+  if (resizeObserver) resizeObserver.disconnect()
+  if (ensureTimer) clearTimeout(ensureTimer)
+})
+
+// ---- 播放控制 ----
+function playById(id) {
   if (playerStore.resuming) return
+  const song = playerStore.songCache.get(id)
+  if (!song) return
   playerStore.playSong(song, playlistStore.currentPlaylist, identity.value)
 }
 
-function confirmRemove(song) {
-  if (!confirm('确定要从歌单中移除「' + (song.title || '未知歌曲') + '」吗？')) {
+function confirmRemove(id, title) {
+  if (!confirm('确定要从歌单中移除「' + (title || '未知歌曲') + '」吗？')) {
     return
   }
-  playlistStore.removeSong(playlistStore.currentPlaylist.id, song.id)
+  playlistStore.removeSong(playlistStore.currentPlaylist.id, id)
 }
 
 function toggleMode() {
@@ -104,7 +182,7 @@ function modeIcon(mode) {
       <button class="btn btn-secondary" @click="$router.back()">← 返回</button>
       <div class="page-title">
         <h2>{{ playlistStore.currentPlaylist ? playlistStore.currentPlaylist.name : '播放器' }}</h2>
-        <p class="hint">{{ identity ? identity.name : '' }} · 共 {{ playlistStore.currentPlaylist ? playlistStore.currentPlaylist.song_count : 0 }} 首</p>
+        <p class="hint">{{ identity ? identity.name : '' }} · 共 {{ total }} 首</p>
       </div>
     </div>
 
@@ -117,74 +195,79 @@ function modeIcon(mode) {
         <span>{{ resumeError }}</span>
         <button class="btn btn-secondary btn-small" @click="resumePlayback">重试</button>
       </div>
-    <div class="player-layout" :class="{ disabled: playerStore.resuming }">
-      <div class="playlist-panel card">
-        <div v-if="playlistStore.currentPlaylist.songs.length === 0" class="empty">歌单为空，先去添加歌曲吧。</div>
-        <table v-else class="song-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>歌曲</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="(song, index) in playlistStore.currentPlaylist.songs"
-              :key="song.id"
-              :class="{ active: isActiveSong(song) }"
-              @click="playSong(song)"
-            >
-              <td>{{ index + 1 }}</td>
-              <td>{{ song.title }}</td>
-              <td>
-                <button class="btn btn-danger btn-small" title="移除" aria-label="移除" @click.stop="confirmRemove(song)">
-                  <i class="fas fa-trash-can"></i>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="player-layout" :class="{ disabled: playerStore.resuming }">
+        <!-- 窄屏时控制面板排在列表上方（CSS order），列表为固定高度滚动窗口 -->
+        <div class="playlist-panel card">
+          <div v-if="total === 0" class="empty">歌单为空，先去添加歌曲吧。</div>
+          <div
+            v-else
+            ref="scrollContainer"
+            class="song-scroll"
+            @scroll.passive="onScroll"
+          >
+            <div class="song-spacer" :style="{ height: totalHeight + 'px' }">
+              <div class="song-window" :style="{ transform: 'translateY(' + offsetY + 'px)' }">
+                <div
+                  v-for="(id, index) in visibleIds"
+                  :key="id"
+                  class="song-row"
+                  :class="{ active: isActiveId(id) }"
+                  @click="playById(id)"
+                >
+                  <span class="song-index">{{ startIndex + index + 1 }}</span>
+                  <span class="song-title">{{ songOf(id) ? songOf(id).title : '加载中…' }}</span>
+                  <button
+                    class="btn btn-danger btn-small song-remove"
+                    title="移除"
+                    aria-label="移除"
+                    @click.stop="confirmRemove(id, songOf(id) ? songOf(id).title : '')"
+                  >
+                    <i class="fas fa-trash-can"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-panel card">
+          <div class="now-playing">
+            <div class="now-title">{{ playerStore.currentSong ? playerStore.currentSong.title : '未在播放' }}</div>
+            <div class="now-artist">{{ playerStore.currentSong ? playerStore.currentSong.artist || '' : '点击歌曲开始播放' }}</div>
+          </div>
+
+          <div ref="progressRef" class="progress-bar" @click="onProgressClick">
+            <div class="progress-fill" :style="{ width: (playerStore.duration ? (playerStore.currentTime / playerStore.duration) * 100 : 0) + '%' }"></div>
+          </div>
+          <div class="time-row">
+            <span>{{ playerStore.currentTimeFormatted }}</span>
+            <span>{{ playerStore.durationFormatted }}</span>
+          </div>
+
+          <div class="control-buttons">
+            <button class="btn btn-secondary control-btn" @click="playerStore.prev" aria-label="上一曲">
+              <i class="fas fa-backward-step"></i>
+            </button>
+            <button class="btn btn-primary control-btn play-btn" @click="playerStore.togglePlay" aria-label="播放/暂停">
+              <i class="fas" :class="playerStore.isPlaying ? 'fa-pause' : 'fa-play'"></i>
+            </button>
+            <button class="btn btn-secondary control-btn" @click="playerStore.next" aria-label="下一曲">
+              <i class="fas fa-forward-step"></i>
+            </button>
+            <button class="btn btn-secondary control-btn" @click="toggleMode" :title="modeLabel(playerStore.mode)">
+              <i class="fas" :class="modeIcon(playerStore.mode)"></i>
+            </button>
+          </div>
+
+          <div class="volume-row">
+            <i class="fas fa-volume-high"></i>
+            <input type="range" min="0" max="1" step="0.05" v-model.number="playerStore.volume" @input="playerStore.setVolume(playerStore.volume)" />
+            <span>{{ Math.round(playerStore.volume * 100) }}%</span>
+          </div>
+
+          <div v-if="playerStore.error" class="error">{{ playerStore.error }}</div>
+        </div>
       </div>
-
-      <div class="control-panel card">
-        <div class="now-playing">
-          <div class="now-title">{{ playerStore.currentSong ? playerStore.currentSong.title : '未在播放' }}</div>
-          <div class="now-artist">{{ playerStore.currentSong ? playerStore.currentSong.artist || '' : '点击左侧歌曲开始播放' }}</div>
-        </div>
-
-        <div ref="progressRef" class="progress-bar" @click="onProgressClick">
-          <div class="progress-fill" :style="{ width: (playerStore.duration ? (playerStore.currentTime / playerStore.duration) * 100 : 0) + '%' }"></div>
-        </div>
-        <div class="time-row">
-          <span>{{ playerStore.currentTimeFormatted }}</span>
-          <span>{{ playerStore.durationFormatted }}</span>
-        </div>
-
-        <div class="control-buttons">
-          <button class="btn btn-secondary control-btn" @click="playerStore.prev" aria-label="上一曲">
-            <i class="fas fa-backward-step"></i>
-          </button>
-          <button class="btn btn-primary control-btn play-btn" @click="playerStore.togglePlay" aria-label="播放/暂停">
-            <i class="fas" :class="playerStore.isPlaying ? 'fa-pause' : 'fa-play'"></i>
-          </button>
-          <button class="btn btn-secondary control-btn" @click="playerStore.next" aria-label="下一曲">
-            <i class="fas fa-forward-step"></i>
-          </button>
-          <button class="btn btn-secondary control-btn" @click="toggleMode" :title="modeLabel(playerStore.mode)">
-            <i class="fas" :class="modeIcon(playerStore.mode)"></i>
-          </button>
-        </div>
-
-        <div class="volume-row">
-          <i class="fas fa-volume-high"></i>
-          <input type="range" min="0" max="1" step="0.05" v-model.number="playerStore.volume" @input="playerStore.setVolume(playerStore.volume)" />
-          <span>{{ Math.round(playerStore.volume * 100) }}%</span>
-        </div>
-
-        <div v-if="playerStore.error" class="error">{{ playerStore.error }}</div>
-      </div>
-    </div>
     </template>
   </div>
 </template>
@@ -209,7 +292,7 @@ function modeIcon(mode) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
   gap: 24px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 .player-layout.disabled {
   opacity: 0.6;
@@ -228,31 +311,64 @@ function modeIcon(mode) {
   margin-bottom: 12px;
 }
 .playlist-panel {
-  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
-.song-table {
-  width: 100%;
-  border-collapse: collapse;
+/* 列表为视口内固定高度滚动窗口，页面整体不再随歌单长度增长 */
+.song-scroll {
+  height: calc(100vh - 220px);
+  min-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
-.song-table th,
-.song-table td {
-  text-align: left;
-  padding: 10px 12px;
+.song-spacer {
+  position: relative;
+}
+.song-window {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  will-change: transform;
+}
+.song-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  padding: 0 12px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-}
-.song-table th {
-  color: #94a3b8;
-  font-size: 13px;
-  font-weight: 500;
-}
-.song-table tbody tr {
   cursor: pointer;
+  box-sizing: border-box;
 }
-.song-table tbody tr:hover {
+.song-row:hover {
   background: rgba(148, 163, 184, 0.1);
 }
-.song-table tbody tr.active {
+.song-row.active {
   background: rgba(99, 102, 241, 0.15);
+}
+.song-index {
+  width: 44px;
+  flex: none;
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: right;
+}
+.song-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.song-remove {
+  flex: none;
+  visibility: hidden;
+}
+.song-row:hover .song-remove,
+.song-row.active .song-remove {
+  visibility: visible;
 }
 .btn-small {
   padding: 4px 10px;
@@ -261,6 +377,7 @@ function modeIcon(mode) {
 .control-panel {
   position: sticky;
   top: 20px;
+  align-self: flex-start;
 }
 .now-playing {
   margin-bottom: 20px;
@@ -315,15 +432,22 @@ function modeIcon(mode) {
   align-items: center;
   gap: 12px;
 }
-.volume-row input[type="range"] {
+.volume-row input[type='range'] {
   flex: 1;
 }
 @media (max-width: 900px) {
   .player-layout {
     grid-template-columns: 1fr;
   }
+  /* 窄屏：控制面板置顶固定，列表窗口占剩余空间，无需悬浮 */
   .control-panel {
     position: static;
+    order: -1;
+    align-self: auto;
+  }
+  .song-scroll {
+    height: 55vh;
+    min-height: 240px;
   }
 }
 </style>

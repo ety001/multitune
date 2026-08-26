@@ -57,7 +57,7 @@ function goToPlayer() {
       <RouterView />
     </main>
 
-    <div v-if="playerStore.currentSong" class="mini-player">
+    <div v-if="playerStore.currentSong && !route.path.startsWith('/playlists/')" class="mini-player">
       <div class="mini-info" @click="goToPlayer">
         <div class="mini-title">{{ playerStore.currentSong.title }}</div>
         <div class="mini-artist">{{ playerStore.currentSong.artist || '' }}</div>
