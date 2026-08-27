@@ -8,7 +8,7 @@
 - 包管理：前端用 pnpm，不要用 npm。
 - 静态编译：CGO_ENABLED=0（使用 modernc.org/sqlite，CGO-free）。
 - 提交前必须通过：`go vet ./...` + `gofmt -l .`（无输出）+ `go test -race ./...`。
-- **版本号由用户决定**：agent 不得自行升级或猜测版本号（含 `package.yml` 的 `version`、git tag、GitHub Release）。发布流程中需要版本号时，先向用户询问确认；仅当用户明确给出版本号后才可写入与发布。
+- **版本号由用户决定**：agent 不得自行升级或猜测版本号（含 `package.yml` 的 `version`、git tag、GitHub Release）。发布流程中需要版本号时，先向用户询问确认；仅当用户明确给出版本号后才可写入与发布。GitHub Release 标题使用 tag 同名格式（如 `v0.0.5`），不用「MultiTune 0.0.5」之类的展示名。
 
 ## 后端编码规范（审计强制要求）
 
