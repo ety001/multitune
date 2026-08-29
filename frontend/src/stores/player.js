@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { playbackApi, songsApi } from '../api/client'
+import { initMediaSession, msSetPlaybackState, msSetPositionState, msSetMetadata } from '../utils/mediaSession'
 
 const VOLUME_KEY = 'multitune_volume'
 
@@ -266,6 +267,11 @@ export const usePlayerStore = defineStore('player', () => {
     audio.currentTime = Math.max(0, Math.min(t, duration.value || t))
   }
 
+  // 相对快进/快退（媒体按键 seekforward/seekbackward 用）
+  function seekBy(delta) {
+    seek((audio.currentTime || 0) + delta)
+  }
+
   function getCurrentIndex() {
     if (!currentSong.value) return -1
     return songIds.value.indexOf(currentSong.value.id)
@@ -361,12 +367,14 @@ export const usePlayerStore = defineStore('player', () => {
     saveTimer = setInterval(() => {
       if (isPlaying.value) savePlaybackState(false)
     }, 10000)
+    startMsPosSync()
   }
   function stopAutoSave() {
     if (saveTimer) {
       clearInterval(saveTimer)
       saveTimer = null
     }
+    stopMsPosSync()
   }
 
   audio.addEventListener('loadedmetadata', () => {
@@ -377,9 +385,11 @@ export const usePlayerStore = defineStore('player', () => {
   })
   audio.addEventListener('play', () => {
     isPlaying.value = true
+    msSetPlaybackState('playing')
   })
   audio.addEventListener('pause', () => {
     isPlaying.value = false
+    msSetPlaybackState('paused')
     savePlaybackState()
   })
   audio.addEventListener('ended', () => {
@@ -389,6 +399,36 @@ export const usePlayerStore = defineStore('player', () => {
     error.value = '音频加载失败或文件不可用'
     isPlaying.value = false
   })
+
+  // ===== 媒体会话接入（方向盘/耳机线控/锁屏媒体按键） =====
+  initMediaSession({
+    play: togglePlay,
+    pause,
+    next,
+    prev,
+    seekBy,
+    seekTo: seek,
+  })
+  // 换歌时同步标题/歌手/封面到系统媒体界面
+  watch(currentSong, (song) => {
+    if (song) msSetMetadata(song)
+  })
+
+  let msPosTimer = null
+  function startMsPosSync() {
+    stopMsPosSync()
+    msPosTimer = setInterval(() => {
+      if (duration.value && isFinite(duration.value)) {
+        msSetPositionState(duration.value, audio.currentTime, audio.playbackRate || 1)
+      }
+    }, 5000)
+  }
+  function stopMsPosSync() {
+    if (msPosTimer) {
+      clearInterval(msPosTimer)
+      msPosTimer = null
+    }
+  }
 
   return {
     currentIdentity,

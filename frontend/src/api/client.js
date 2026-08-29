@@ -68,7 +68,7 @@ export const identityApi = {
 }
 
 export const playlistApi = {
-  listByIdentity: (identityId) => api.get('/identities/' + identityId + '/playlists'),
+  listByIdentity: (identityId, params = {}) => api.get('/identities/' + identityId + '/playlists', params),
   create: (identityId, body) => api.post('/identities/' + identityId + '/playlists', body),
   get: (id, params = {}) => api.get('/playlists/' + id, params),
   update: (id, body) => api.put('/playlists/' + id, body),

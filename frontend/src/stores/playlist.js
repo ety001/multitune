@@ -7,13 +7,20 @@ export const usePlaylistStore = defineStore('playlist', () => {
   const currentPlaylist = ref(null)
   const loading = ref(false)
   const error = ref(null)
+  // 歌单列表窗口化阈值（后端下发）：超过则前端切换虚拟滚动 + 后端搜索
+  const windowThreshold = ref(36)
+  // 未过滤时的歌单总数（决定搜索走前端过滤还是后端搜索）
+  const totalCount = ref(0)
 
-  async function fetchPlaylists(identityId) {
+  async function fetchPlaylists(identityId, q = '') {
     loading.value = true
     error.value = null
     try {
-      const data = await playlistApi.listByIdentity(identityId)
+      const params = q ? { q } : {}
+      const data = await playlistApi.listByIdentity(identityId, params)
       playlists.value = data.items || []
+      totalCount.value = data.total || playlists.value.length
+      windowThreshold.value = data.window_threshold || 36
     } catch (e) {
       error.value = e.message
     } finally {
@@ -97,6 +104,8 @@ export const usePlaylistStore = defineStore('playlist', () => {
     currentPlaylist,
     loading,
     error,
+    windowThreshold,
+    totalCount,
     fetchPlaylists,
     createPlaylist,
     updatePlaylist,

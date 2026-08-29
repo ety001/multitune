@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/ety001/multitune/internal/config"
@@ -313,4 +315,93 @@ func createPlaylistForTest(t *testing.T, r http.Handler, identityID, name string
 	var playlist model.Playlist
 	_ = json.Unmarshal(data, &playlist)
 	return &playlist
+}
+
+// 列表响应应附带窗口化阈值；未配置时回退默认值 36
+func TestHandler_ListPlaylists_WindowThreshold(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	identity := createIdentityForTest(t, r, "爸爸")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/identities/"+identity.ID+"/playlists", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("状态码错误: got %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp struct {
+		Code int `json:"code"`
+		Data struct {
+			Items           []model.Playlist `json:"items"`
+			Total           int              `json:"total"`
+			WindowThreshold int              `json:"window_threshold"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	if resp.Code != 0 {
+		t.Errorf("响应码错误: got %d, want 0", resp.Code)
+	}
+	if resp.Data.WindowThreshold != config.DefaultPlaylistWindowThreshold {
+		t.Errorf("窗口化阈值错误: got %d, want %d（未配置时的默认值）",
+			resp.Data.WindowThreshold, config.DefaultPlaylistWindowThreshold)
+	}
+	if resp.Data.Items == nil {
+		t.Error("空列表应序列化为 [] 而非 null")
+	}
+}
+
+// ?q= 应按歌单名模糊过滤，仅返回当前身份的歌单
+func TestHandler_ListPlaylists_Search(t *testing.T) {
+	h := newTestHandler(t)
+	r := h.SetupRouter()
+
+	identity := createIdentityForTest(t, r, "爸爸")
+	other := createIdentityForTest(t, r, "妈妈")
+
+	for _, name := range []string{"通勤快歌", "睡前通勤", "儿歌"} {
+		body, _ := json.Marshal(map[string]interface{}{"name": name})
+		req, _ := http.NewRequest("POST", "/api/identities/"+identity.ID+"/playlists", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(httptest.NewRecorder(), req)
+	}
+	body, _ := json.Marshal(map[string]interface{}{"name": "别人的通勤"})
+	req, _ := http.NewRequest("POST", "/api/identities/"+other.ID+"/playlists", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(httptest.NewRecorder(), req)
+
+	searchURL := "/api/identities/" + identity.ID + "/playlists?q=" + url.QueryEscape("通勤")
+	searchReq, _ := http.NewRequest("GET", searchURL, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, searchReq)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("状态码错误: got %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp struct {
+		Code int `json:"code"`
+		Data struct {
+			Items []model.Playlist `json:"items"`
+			Total int              `json:"total"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	if resp.Data.Total != 2 {
+		t.Errorf("搜索结果数量错误: got %d, want 2", resp.Data.Total)
+	}
+	for _, p := range resp.Data.Items {
+		if p.IdentityID != identity.ID {
+			t.Errorf("搜索结果包含其他身份的歌单: %s", p.Name)
+		}
+		if !strings.Contains(p.Name, "通勤") {
+			t.Errorf("搜索结果包含不匹配的歌单: %s", p.Name)
+		}
+	}
 }

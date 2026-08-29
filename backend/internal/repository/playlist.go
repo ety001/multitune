@@ -25,17 +25,37 @@ func NewPlaylistRepo(database *db.DB) *PlaylistRepo {
 	return &PlaylistRepo{db: database}
 }
 
-// ListByIdentity 获取身份下的歌单列表
+// ListByIdentity 获取身份下的歌单列表，按最后播放时间逆序
+// （playlist_states.updated_at 在每次播放该歌单时刷新，即"最后播放时间"；
+// 从未播放过的歌单排后面，按 sort_order、created_at 兜底）
 func (r *PlaylistRepo) ListByIdentity(identityID string) ([]model.Playlist, error) {
+	return r.queryByIdentity(identityID, "")
+}
+
+// SearchByIdentity 按名称模糊搜索身份下的歌单（大小写不敏感），
+// 排序规则与 ListByIdentity 一致
+func (r *PlaylistRepo) SearchByIdentity(identityID, keyword string) ([]model.Playlist, error) {
+	return r.queryByIdentity(identityID, keyword)
+}
+
+func (r *PlaylistRepo) queryByIdentity(identityID, keyword string) ([]model.Playlist, error) {
+	where := "p.identity_id = ?"
+	args := []interface{}{identityID}
+	if keyword != "" {
+		where += " AND p.name LIKE ? ESCAPE '\\'"
+		args = append(args, "%"+escapeLike(keyword)+"%")
+	}
+
 	rows, err := r.db.Query(`
 		SELECT p.id, p.identity_id, p.name, p.cover_url, p.sort_order, p.created_at, p.updated_at,
 		       COUNT(ps.song_id) as song_count
 		FROM playlists p
 		LEFT JOIN playlist_songs ps ON p.id = ps.playlist_id
-		WHERE p.identity_id = ?
+		LEFT JOIN playlist_states pst ON p.id = pst.playlist_id
+		WHERE `+where+`
 		GROUP BY p.id
-		ORDER BY p.sort_order ASC, p.created_at ASC
-	`, identityID)
+		ORDER BY COALESCE(pst.updated_at, 0) DESC, p.sort_order ASC, p.created_at ASC
+	`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("查询歌单列表失败: %w", err)
 	}
@@ -57,6 +77,14 @@ func (r *PlaylistRepo) ListByIdentity(identityID string) ([]model.Playlist, erro
 	}
 
 	return playlists, nil
+}
+
+// escapeLike 转义 LIKE 模式中的通配符，配合 ESCAPE '\' 实现字面量匹配
+func escapeLike(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
 }
 
 // GetByID 根据 ID 获取歌单

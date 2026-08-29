@@ -131,7 +131,10 @@
           <button type="button" class="close" data-dismiss="modal" aria-label="关闭"><span aria-hidden="true">&times;</span></button>
           <h4 class="modal-title">选择歌单</h4>
         </div>
-        <div class="modal-body" id="playlistList">
+        <div class="playlist-search-bar">
+          <input type="text" id="playlistSearchInput" placeholder="搜索歌单" autocomplete="off">
+        </div>
+        <div class="modal-body playlist-list-body" id="playlistList">
           <div class="loading">正在加载歌单...</div>
         </div>
       </div>
@@ -144,7 +147,7 @@
   <script src="./js/jquery-3.7.1.min.js?v=3"></script>
   <script src="./lib/bootstrap/js/bootstrap.min.js?v=3"></script>
   <script src="./js/app.js?v=4"></script>
-  <script src="./js/player.js?v=9"></script>
+  <script src="./js/player.js?v=12"></script>
   <script>
     (function() {
       window.MultiTunePlayer.init({

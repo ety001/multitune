@@ -8,6 +8,8 @@
     songCache: {},        // { id: Song详情 }，按需填充
     ROW_HEIGHT: 56,       // 列表项固定行高（与 CSS .song-list-item height 一致）
     WINDOW_SIZE: 50,      // 虚拟窗口同时渲染的条数
+    PL_ROW_HEIGHT: 72,    // 歌单紧凑行固定行高（与 CSS .playlist-select-item.compact height 一致）
+    PL_WINDOW_SIZE: 40,   // 歌单虚拟窗口同时渲染的条数
     _scrollTimer: null,   // 滚动节流定时器
     currentIndex: 0,
     mode: 'order', // order | random | single-loop
@@ -23,6 +25,7 @@
     init: function(options) {
       this.options = options;
       this.mode = 'order';
+      this.initMediaSession();
       // bindVolume 用 try-catch 包裹：即使音量弹层绑定出错，也不能阻塞
       // 后续 bindEvents（播放/暂停/上下曲等核心按钮），否则页面会卡死无响应。
       try { this.bindVolume(); } catch (e) { /* 忽略音量绑定错误 */ }
@@ -313,6 +316,138 @@
       });
     },
 
+    // 媒体会话通道：lzc-bridge = 懒猫 WebShell 原生桥；standard = 浏览器原生 API；none = 无
+    msMode: function() {
+      if (typeof lzc_media_session !== 'undefined') { return 'lzc-bridge'; }
+      if ('mediaSession' in navigator) { return 'standard'; }
+      return 'none';
+    },
+
+    // ===== MediaSession 接入：让系统认到媒体会话，接收方向盘媒体按键 =====
+    // 优先走懒猫 WebShell 注入的 lzc_media_session 桥（车机 WebView 无标准 API 时
+    // 仍能建立原生媒体会话）；回调经 window 的 lzc_media_session_event 事件派发。
+    initMediaSession: function() {
+      var self = this;
+      var mode = this.msMode();
+      if (mode === 'none') {
+        return;
+      }
+      this._msHandlers = {};
+
+      // 懒猫桥的动作回调：CustomEvent detail = { eventType, data }
+      window.addEventListener('lzc_media_session_event', function(e) {
+        var detail = e.detail || {};
+        var fn = self._msHandlers[detail.eventType];
+        if (fn) { fn(detail.data); }
+      });
+
+      var actions = {
+        play: function() { self.hasUserInteracted = true; self.togglePlay(); },
+        pause: function() { self.hasUserInteracted = true; self.togglePlay(); },
+        nexttrack: function() { self.hasUserInteracted = true; self.playNext(); },
+        previoustrack: function() { self.hasUserInteracted = true; self.playPrev(); },
+        seekforward: function() { self.seekBy(10); },
+        seekbackward: function() { self.seekBy(-10); },
+        seekto: function(data) {
+          var t = data && typeof data.seekTime === 'number' ? data.seekTime : null;
+          if (t !== null) { self.seekBy(null, t); }
+        },
+        stop: function() { self.hasUserInteracted = true; self.pauseOnly(); }
+      };
+
+      for (var name in actions) {
+        if (Object.prototype.hasOwnProperty.call(actions, name)) {
+          this._msHandlers[name] = actions[name];
+          try {
+            if (mode === 'lzc-bridge') {
+              lzc_media_session.setActionHandler(name);
+            } else {
+              navigator.mediaSession.setActionHandler(name, actions[name]);
+            }
+          } catch (e) {
+            // 该 action 不被支持，跳过
+          }
+        }
+      }
+
+      var audio = $(this.options.audioEl)[0];
+      $(audio).off('.mediasession');
+      $(audio).on('play.mediasession', function() { self.msSetPlaybackState('playing'); });
+      $(audio).on('pause.mediasession', function() { self.msSetPlaybackState('paused'); });
+      // 进度同步：节流，每 5 秒上报一次
+      if (this._msPosTimer) { clearInterval(this._msPosTimer); }
+      this._msPosTimer = setInterval(function() {
+        if (audio.duration && !isNaN(audio.duration)) {
+          self.msSetPositionState(audio.duration, audio.currentTime, audio.playbackRate || 1);
+        }
+      }, 5000);
+    },
+
+    // 相对快进/快退（delta 秒）；传 absolute 时直接跳到指定秒
+    seekBy: function(delta, absolute) {
+      var audio = $(this.options.audioEl)[0];
+      try {
+        if (typeof absolute === 'number') {
+          audio.currentTime = Math.max(0, Math.min(absolute, audio.duration || absolute));
+        } else {
+          audio.currentTime = Math.max(0, Math.min(audio.currentTime + delta, audio.duration || audio.currentTime + delta));
+        }
+      } catch (e) {}
+    },
+
+    pauseOnly: function() {
+      var audio = $(this.options.audioEl)[0];
+      try { audio.pause(); } catch (e) {}
+    },
+
+    msSetPlaybackState: function(state) {
+      try {
+        if (this.msMode() === 'lzc-bridge') {
+          lzc_media_session.setPlaybackState(state);
+        } else if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = state;
+        }
+      } catch (e) {}
+    },
+
+    msSetPositionState: function(duration, position, rate) {
+      try {
+        if (this.msMode() === 'lzc-bridge') {
+          lzc_media_session.setPositionState(JSON.stringify({
+            duration: duration, position: position, playbackRate: rate
+          }));
+        } else if ('mediaSession' in navigator && typeof navigator.mediaSession.setPositionState === 'function') {
+          navigator.mediaSession.setPositionState({
+            duration: duration, position: position, playbackRate: rate
+          });
+        }
+      } catch (e) {}
+    },
+
+    // 换歌时更新媒体元信息（标题/歌手/封面），供锁屏与系统媒体控制显示
+    updateMediaSessionMetadata: function(song) {
+      var mode = this.msMode();
+      if (mode === 'none') { return; }
+      var meta = {
+        title: (song && song.title) || '未知歌曲',
+        artist: (song && song.artist) || '',
+        album: 'MultiTune'
+      };
+      if (song && song.id) {
+        // 原生侧需要完整 URL 才能拉封面
+        meta.artwork = [{ src: location.origin + '/api/songs/' + encodeURIComponent(song.id) + '/cover?size=thumb', sizes: '256x256', type: 'image/webp' }];
+      }
+      try {
+        if (mode === 'lzc-bridge') {
+          lzc_media_session.setMetadata(JSON.stringify(meta));
+        } else {
+          navigator.mediaSession.metadata = new window.MediaMetadata(meta);
+        }
+      } catch (e) {
+        // 元信息设置失败不影响播放
+      }
+    },
+
     bindKeyboard: function() {
       var self = this;
       $(document).on('keydown', function(e) {
@@ -454,6 +589,7 @@
 
       $(this.options.titleEl).text(song.title || '未知歌曲');
       $(this.options.artistEl).text(song.artist || '-');
+      this.updateMediaSessionMetadata(song);
       this.loadCover(song);
 
       audio.src = '/api/songs/' + encodeURIComponent(song.id) + '/stream';
@@ -523,7 +659,9 @@
         $(audio).off('.cover');
         var thumbUrl = '/api/songs/' + encodeURIComponent(song.id) + '/cover?size=thumb';
         var fullUrl = '/api/songs/' + encodeURIComponent(song.id) + '/cover';
-        var img = $('<img alt="">').css({ 'width': '100%', 'height': '100%', 'object-fit': 'cover' });
+        // display:block：img 默认内联元素会坐在 line-height 的文本基线上，
+        // 整体下移导致容器顶部露出背景色；块级 + 100% 尺寸才能完全铺满
+        var img = $('<img alt="">').css({ 'display': 'block', 'width': '100%', 'height': '100%', 'object-fit': 'cover' });
         var stage = 0;
         img.on('error', function() {
           stage += 1;
@@ -795,7 +933,7 @@
       var $list = $(this.options.identityListEl);
       $list.html('<div class="loading">正在加载身份...</div>');
 
-      MultiTune.get('/identities?limit=100', function(err, data) {
+      MultiTune.get('/identities', function(err, data) {
         if (err) {
           MultiTune.showError($list, '加载身份失败：' + err);
           return;
@@ -840,6 +978,7 @@
       var self = this;
       this.options.identityId = identityId;
       this.openModal(this.options.playlistModal);
+      this.resetPlaylistSearch();
       var $list = $(this.options.playlistListEl);
       $list.html('<div class="loading">正在加载歌单...</div>');
 
@@ -853,15 +992,20 @@
         if (failed || settled < 2) {
           return;
         }
-        self.renderPlaylistList(
-          playlistsData && playlistsData.items ? playlistsData.items : [],
-          stateData,
-          stateFailed,
-          identityId
-        );
+        // 缓存全量列表与阈值：搜索过滤/窗口化都以这份原始数据为准
+        var items = playlistsData && playlistsData.items ? playlistsData.items : [];
+        self._playlistCache = {
+          identityId: identityId,
+          items: items,
+          total: (playlistsData && playlistsData.total) || items.length,
+          threshold: (playlistsData && playlistsData.window_threshold) || 36,
+          state: stateData,
+          stateFailed: stateFailed
+        };
+        self.renderPlaylistList(items, stateData, stateFailed, identityId);
       }
 
-      MultiTune.get('/identities/' + encodeURIComponent(identityId) + '/playlists?limit=100', function(err, data) {
+      MultiTune.get('/identities/' + encodeURIComponent(identityId) + '/playlists', function(err, data) {
         settled += 1;
         if (err) {
           failed = true;
@@ -893,6 +1037,7 @@
       this.closeModal(this.options.playlistModal);
     },
 
+    // 渲染歌单列表：超过阈值走虚拟滚动（紧凑定高行），否则全量渲染
     renderPlaylistList: function(items, state, stateFailed, identityId) {
       var self = this;
       var $list = $(this.options.playlistListEl);
@@ -901,43 +1046,176 @@
         return;
       }
 
+      var threshold = (this._playlistCache && this._playlistCache.threshold) || 36;
       var lastPlaylistId = (state && state.playlist_id) ? state.playlist_id : '';
 
-      var html = '';
+      var warnHtml = '';
       if (stateFailed) {
-        html += '<div class="modal-warn-bar">记忆点加载失败，无法标注上次播放 <a class="retry-link" id="retryPlaylistState">重试</a></div>';
+        warnHtml = '<div class="modal-warn-bar">记忆点加载失败，无法标注上次播放 <a class="retry-link" id="retryPlaylistState">重试</a></div>';
       }
+
+      this._plDisplayItems = items;
+
+      if (items.length > threshold) {
+        // 窗口化：spacer 撑出总滚动高度，滚动时节流重绘窗口
+        var totalHeight = items.length * this.PL_ROW_HEIGHT;
+        $list.html(warnHtml +
+          '<div class="pl-list-spacer" style="height:' + totalHeight + 'px">' +
+            '<div class="pl-list-window" id="plListWindow"></div>' +
+          '</div>');
+        $list.scrollTop(0);
+        $list.off('scroll.plvirtuallist').on('scroll.plvirtuallist', function() {
+          if (self._plScrollTimer) { clearTimeout(self._plScrollTimer); }
+          self._plScrollTimer = setTimeout(function() {
+            self._renderPlaylistWindow(lastPlaylistId);
+          }, 50);
+        });
+        $list.find('#retryPlaylistState').on('click', function() {
+          self.openPlaylistModal(identityId);
+        });
+        this._renderPlaylistWindow(lastPlaylistId);
+        return;
+      }
+
+      var html = warnHtml;
       for (var i = 0; i < items.length; i++) {
-        var pl = items[i];
-        var countText = (pl.song_count || 0) + ' 首歌曲';
-        var isLast = lastPlaylistId && pl.id === lastPlaylistId;
-        html += '<div class="playlist-select-item' + (isLast ? ' last-played' : '') + '" data-id="' + escapeHtml(pl.id) + '">';
-        html += '<div class="playlist-select-name">' + escapeHtml(pl.name || '未命名歌单');
-        if (isLast) {
-          html += '<span class="last-played-badge">上次播放</span>';
-        }
-        html += '</div>';
-        html += '<div class="playlist-select-meta">' + countText + '</div>';
-        html += '</div>';
+        html += this._playlistItemHtml(items[i], lastPlaylistId, false);
       }
+      $list.off('scroll.plvirtuallist');
       $list.html(html);
 
       $list.find('#retryPlaylistState').on('click', function() {
         self.openPlaylistModal(identityId);
       });
 
-      $list.find('.playlist-select-item').on('click', function() {
-        if (self.loading) {
+      $list.off('click.plselect').on('click.plselect', '.playlist-select-item', function() {
+        self._onPlaylistSelected($(this));
+      });
+    },
+
+    // 单个歌单条目 HTML。compact 为窗口化紧凑模式（定高两行）
+    _playlistItemHtml: function(pl, lastPlaylistId, compact) {
+      var countText = (pl.song_count || 0) + ' 首歌曲';
+      var isLast = lastPlaylistId && pl.id === lastPlaylistId;
+      var html = '<div class="playlist-select-item' + (compact ? ' compact' : '') + (isLast ? ' last-played' : '') + '" data-id="' + escapeHtml(pl.id) + '">';
+      html += '<div class="playlist-select-name">' + escapeHtml(pl.name || '未命名歌单');
+      if (isLast) {
+        html += '<span class="last-played-badge">上次播放</span>';
+      }
+      html += '</div>';
+      html += '<div class="playlist-select-meta">' + countText + '</div>';
+      html += '</div>';
+      return html;
+    },
+
+    // 渲染歌单虚拟窗口内 [startIndex, endIndex) 的条目
+    _renderPlaylistWindow: function(lastPlaylistId) {
+      var items = this._plDisplayItems;
+      if (!items || items.length === 0) { return; }
+
+      var $list = $(this.options.playlistListEl);
+      var scrollTop = $list.scrollTop();
+      var total = items.length;
+      var rowHeight = this.PL_ROW_HEIGHT;
+      var buffer = 8;
+      var startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
+      var endIndex = Math.min(total, startIndex + this.PL_WINDOW_SIZE);
+
+      var $window = $('#plListWindow');
+      if ($window.length === 0) { return; }
+      $window.css({
+        '-webkit-transform': 'translateY(' + (startIndex * rowHeight) + 'px)',
+        'transform': 'translateY(' + (startIndex * rowHeight) + 'px)'
+      });
+
+      var html = '';
+      for (var i = startIndex; i < endIndex; i++) {
+        html += this._playlistItemHtml(items[i], lastPlaylistId, true);
+      }
+      $window.html(html);
+
+      var self = this;
+      $window.off('click.plselect').on('click.plselect', '.playlist-select-item', function() {
+        self._onPlaylistSelected($(this));
+      });
+    },
+
+    _onPlaylistSelected: function($item) {
+      if (this.loading) {
+        return;
+      }
+      var playlistId = $item.attr('data-id');
+      $item.addClass('disabled');
+      this.options.playlistId = playlistId;
+      this.hasUserInteracted = true;
+      this.closePlaylistModal();
+      this.updateUrl();
+      this.loadData();
+    },
+
+    // 搜索栏：清空输入并解绑旧事件（弹层每次打开时调用）
+    resetPlaylistSearch: function() {
+      if (this._plSearchTimer) {
+        clearTimeout(this._plSearchTimer);
+        this._plSearchTimer = null;
+      }
+      var $input = $('#playlistSearchInput');
+      $input.off('input.plsearch').val('');
+      var self = this;
+      $input.on('input.plsearch', function() {
+        self.onPlaylistSearch($.trim($(this).val()));
+      });
+    },
+
+    // 歌单搜索：总数不超过阈值用前端过滤；超过阈值走后端搜索（300ms 防抖）
+    onPlaylistSearch: function(q) {
+      var self = this;
+      var cache = this._playlistCache;
+      if (!cache || !cache.items) {
+        return;
+      }
+
+      if (cache.total <= cache.threshold) {
+        var lower = q.toLowerCase();
+        var filtered = [];
+        for (var i = 0; i < cache.items.length; i++) {
+          var name = (cache.items[i].name || '').toLowerCase();
+          if (!q || name.indexOf(lower) >= 0) {
+            filtered.push(cache.items[i]);
+          }
+        }
+        if (q && filtered.length === 0) {
+          MultiTune.showEmpty($(self.options.playlistListEl), '没有匹配「' + q + '」的歌单');
           return;
         }
-        var playlistId = $(this).attr('data-id');
-        $(this).addClass('disabled');
-        self.options.playlistId = playlistId;
-        self.hasUserInteracted = true;
-        self.closePlaylistModal();
-        self.updateUrl();
-        self.loadData();
-      });
+        self.renderPlaylistList(filtered, cache.state, cache.stateFailed, cache.identityId);
+        return;
+      }
+
+      if (this._plSearchTimer) { clearTimeout(this._plSearchTimer); }
+      this._plSearchTimer = setTimeout(function() {
+        if (!q) {
+          self.renderPlaylistList(cache.items, cache.state, cache.stateFailed, cache.identityId);
+          return;
+        }
+        MultiTune.get('/identities/' + encodeURIComponent(cache.identityId) + '/playlists?q=' + encodeURIComponent(q), function(err, data) {
+          if (err) {
+            // 搜索失败保留当前列表
+            return;
+          }
+          var resultItems = data && data.items ? data.items : [];
+          if (resultItems.length === 0) {
+            MultiTune.showEmpty($(self.options.playlistListEl), '没有匹配「' + q + '」的歌单');
+            return;
+          }
+          self.renderPlaylistList(
+            resultItems,
+            cache.state,
+            cache.stateFailed,
+            cache.identityId
+          );
+        });
+      }, 300);
     },
 
     updateUrl: function() {
