@@ -135,6 +135,8 @@ input:focus,
   height: 150px;
   margin: 0 auto 24px;
   border-radius: 20px;
+  /* 封面图铺满容器后，圆角外的角不被图片戳穿 */
+  overflow: hidden;
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
   text-align: center;
   line-height: 150px;

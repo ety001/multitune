@@ -659,7 +659,9 @@
         $(audio).off('.cover');
         var thumbUrl = '/api/songs/' + encodeURIComponent(song.id) + '/cover?size=thumb';
         var fullUrl = '/api/songs/' + encodeURIComponent(song.id) + '/cover';
-        var img = $('<img alt="">').css({ 'width': '100%', 'height': '100%', 'object-fit': 'cover' });
+        // display:block：img 默认内联元素会坐在 line-height 的文本基线上，
+        // 整体下移导致容器顶部露出背景色；块级 + 100% 尺寸才能完全铺满
+        var img = $('<img alt="">').css({ 'display': 'block', 'width': '100%', 'height': '100%', 'object-fit': 'cover' });
         var stage = 0;
         img.on('error', function() {
           stage += 1;
