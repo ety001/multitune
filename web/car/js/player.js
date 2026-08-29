@@ -23,6 +23,7 @@
     init: function(options) {
       this.options = options;
       this.mode = 'order';
+      this.initMediaSession();
       // bindVolume 用 try-catch 包裹：即使音量弹层绑定出错，也不能阻塞
       // 后续 bindEvents（播放/暂停/上下曲等核心按钮），否则页面会卡死无响应。
       try { this.bindVolume(); } catch (e) { /* 忽略音量绑定错误 */ }
@@ -313,6 +314,138 @@
       });
     },
 
+    // 媒体会话通道：lzc-bridge = 懒猫 WebShell 原生桥；standard = 浏览器原生 API；none = 无
+    msMode: function() {
+      if (typeof lzc_media_session !== 'undefined') { return 'lzc-bridge'; }
+      if ('mediaSession' in navigator) { return 'standard'; }
+      return 'none';
+    },
+
+    // ===== MediaSession 接入：让系统认到媒体会话，接收方向盘媒体按键 =====
+    // 优先走懒猫 WebShell 注入的 lzc_media_session 桥（车机 WebView 无标准 API 时
+    // 仍能建立原生媒体会话）；回调经 window 的 lzc_media_session_event 事件派发。
+    initMediaSession: function() {
+      var self = this;
+      var mode = this.msMode();
+      if (mode === 'none') {
+        return;
+      }
+      this._msHandlers = {};
+
+      // 懒猫桥的动作回调：CustomEvent detail = { eventType, data }
+      window.addEventListener('lzc_media_session_event', function(e) {
+        var detail = e.detail || {};
+        var fn = self._msHandlers[detail.eventType];
+        if (fn) { fn(detail.data); }
+      });
+
+      var actions = {
+        play: function() { self.hasUserInteracted = true; self.togglePlay(); },
+        pause: function() { self.hasUserInteracted = true; self.togglePlay(); },
+        nexttrack: function() { self.hasUserInteracted = true; self.playNext(); },
+        previoustrack: function() { self.hasUserInteracted = true; self.playPrev(); },
+        seekforward: function() { self.seekBy(10); },
+        seekbackward: function() { self.seekBy(-10); },
+        seekto: function(data) {
+          var t = data && typeof data.seekTime === 'number' ? data.seekTime : null;
+          if (t !== null) { self.seekBy(null, t); }
+        },
+        stop: function() { self.hasUserInteracted = true; self.pauseOnly(); }
+      };
+
+      for (var name in actions) {
+        if (Object.prototype.hasOwnProperty.call(actions, name)) {
+          this._msHandlers[name] = actions[name];
+          try {
+            if (mode === 'lzc-bridge') {
+              lzc_media_session.setActionHandler(name);
+            } else {
+              navigator.mediaSession.setActionHandler(name, actions[name]);
+            }
+          } catch (e) {
+            // 该 action 不被支持，跳过
+          }
+        }
+      }
+
+      var audio = $(this.options.audioEl)[0];
+      $(audio).off('.mediasession');
+      $(audio).on('play.mediasession', function() { self.msSetPlaybackState('playing'); });
+      $(audio).on('pause.mediasession', function() { self.msSetPlaybackState('paused'); });
+      // 进度同步：节流，每 5 秒上报一次
+      if (this._msPosTimer) { clearInterval(this._msPosTimer); }
+      this._msPosTimer = setInterval(function() {
+        if (audio.duration && !isNaN(audio.duration)) {
+          self.msSetPositionState(audio.duration, audio.currentTime, audio.playbackRate || 1);
+        }
+      }, 5000);
+    },
+
+    // 相对快进/快退（delta 秒）；传 absolute 时直接跳到指定秒
+    seekBy: function(delta, absolute) {
+      var audio = $(this.options.audioEl)[0];
+      try {
+        if (typeof absolute === 'number') {
+          audio.currentTime = Math.max(0, Math.min(absolute, audio.duration || absolute));
+        } else {
+          audio.currentTime = Math.max(0, Math.min(audio.currentTime + delta, audio.duration || audio.currentTime + delta));
+        }
+      } catch (e) {}
+    },
+
+    pauseOnly: function() {
+      var audio = $(this.options.audioEl)[0];
+      try { audio.pause(); } catch (e) {}
+    },
+
+    msSetPlaybackState: function(state) {
+      try {
+        if (this.msMode() === 'lzc-bridge') {
+          lzc_media_session.setPlaybackState(state);
+        } else if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = state;
+        }
+      } catch (e) {}
+    },
+
+    msSetPositionState: function(duration, position, rate) {
+      try {
+        if (this.msMode() === 'lzc-bridge') {
+          lzc_media_session.setPositionState(JSON.stringify({
+            duration: duration, position: position, playbackRate: rate
+          }));
+        } else if ('mediaSession' in navigator && typeof navigator.mediaSession.setPositionState === 'function') {
+          navigator.mediaSession.setPositionState({
+            duration: duration, position: position, playbackRate: rate
+          });
+        }
+      } catch (e) {}
+    },
+
+    // 换歌时更新媒体元信息（标题/歌手/封面），供锁屏与系统媒体控制显示
+    updateMediaSessionMetadata: function(song) {
+      var mode = this.msMode();
+      if (mode === 'none') { return; }
+      var meta = {
+        title: (song && song.title) || '未知歌曲',
+        artist: (song && song.artist) || '',
+        album: 'MultiTune'
+      };
+      if (song && song.id) {
+        // 原生侧需要完整 URL 才能拉封面
+        meta.artwork = [{ src: location.origin + '/api/songs/' + encodeURIComponent(song.id) + '/cover?size=thumb', sizes: '256x256', type: 'image/webp' }];
+      }
+      try {
+        if (mode === 'lzc-bridge') {
+          lzc_media_session.setMetadata(JSON.stringify(meta));
+        } else {
+          navigator.mediaSession.metadata = new window.MediaMetadata(meta);
+        }
+      } catch (e) {
+        // 元信息设置失败不影响播放
+      }
+    },
+
     bindKeyboard: function() {
       var self = this;
       $(document).on('keydown', function(e) {
@@ -454,6 +587,7 @@
 
       $(this.options.titleEl).text(song.title || '未知歌曲');
       $(this.options.artistEl).text(song.artist || '-');
+      this.updateMediaSessionMetadata(song);
       this.loadCover(song);
 
       audio.src = '/api/songs/' + encodeURIComponent(song.id) + '/stream';
