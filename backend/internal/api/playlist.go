@@ -3,7 +3,9 @@ package api
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 
+	"github.com/ety001/multitune/internal/config"
 	"github.com/ety001/multitune/internal/model"
 	"github.com/gin-gonic/gin"
 )
@@ -35,7 +37,15 @@ const (
 	ErrCodeIdentityNotFoundForPlaylist = 1001 // 复用身份不存在错误码
 )
 
-// ListPlaylists GET /api/identities/:id/playlists
+// playlistListResponse 歌单列表响应：在通用 items/total 之外附带窗口化阈值，
+// 前端据此决定全量渲染还是虚拟滚动、前端过滤还是后端搜索
+type playlistListResponse struct {
+	Items           []model.Playlist `json:"items"`
+	Total           int              `json:"total"`
+	WindowThreshold int              `json:"window_threshold"`
+}
+
+// ListPlaylists GET /api/identities/:id/playlists[?q=关键词]
 func (h *Handler) ListPlaylists(c *gin.Context) {
 	identityID := c.Param("id")
 
@@ -57,9 +67,15 @@ func (h *Handler) ListPlaylists(c *gin.Context) {
 		return
 	}
 
-	playlists, err := h.playlistRepo.ListByIdentity(identityID)
+	keyword := strings.TrimSpace(c.Query("q"))
+	var playlists []model.Playlist
+	if keyword != "" {
+		playlists, err = h.playlistRepo.SearchByIdentity(identityID, keyword)
+	} else {
+		playlists, err = h.playlistRepo.ListByIdentity(identityID)
+	}
 	if err != nil {
-		slog.Error("查询歌单列表失败", "error", err, "identity_id", identityID)
+		slog.Error("查询歌单列表失败", "error", err, "identity_id", identityID, "q", keyword)
 		c.JSON(http.StatusInternalServerError, model.APIResponse{
 			Code:    9001,
 			Message: "内部错误",
@@ -67,12 +83,17 @@ func (h *Handler) ListPlaylists(c *gin.Context) {
 		return
 	}
 
+	threshold := h.cfg.PlaylistWindowThreshold
+	if threshold <= 0 {
+		threshold = config.DefaultPlaylistWindowThreshold
+	}
 	c.JSON(http.StatusOK, model.APIResponse{
 		Code:    0,
 		Message: "ok",
-		Data: model.ListResponse{
-			Items: playlists,
-			Total: len(playlists),
+		Data: playlistListResponse{
+			Items:           playlists,
+			Total:           len(playlists),
+			WindowThreshold: threshold,
 		},
 	})
 }

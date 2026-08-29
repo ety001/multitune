@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+// DefaultPlaylistWindowThreshold 歌单列表窗口化展示阈值默认值：
+// 歌单数超过该值时前端切换为虚拟滚动 + 后端搜索，否则全量展示 + 前端过滤
+const DefaultPlaylistWindowThreshold = 36
+
 // Config 应用配置
 type Config struct {
 	Port                    string
@@ -16,6 +20,7 @@ type Config struct {
 	MaxIdentities           int
 	MaxPlaylistsPerIdentity int
 	MaxSongsPerPlaylist     int
+	PlaylistWindowThreshold int
 	ScanFormats             []string
 	PlaybackSaveInterval    int
 	LogLevel                string
@@ -37,6 +42,7 @@ func Load() *Config {
 		MaxIdentities:           getEnvInt("MAX_IDENTITIES", 20),
 		MaxPlaylistsPerIdentity: getEnvInt("MAX_PLAYLISTS_PER_IDENTITY", 50),
 		MaxSongsPerPlaylist:     getEnvInt("MAX_SONGS_PER_PLAYLIST", 1000),
+		PlaylistWindowThreshold: getEnvInt("PLAYLIST_WINDOW_THRESHOLD", DefaultPlaylistWindowThreshold),
 		ScanFormats:             getEnvSlice("SCAN_FORMATS", []string{"mp3", "flac", "m4a", "aac", "ogg", "wav"}),
 		PlaybackSaveInterval:    getEnvInt("PLAYBACK_SAVE_INTERVAL", 5),
 		LogLevel:                getEnv("LOG_LEVEL", "info"),
@@ -59,6 +65,9 @@ func Load() *Config {
 	}
 	if cfg.MaxSongsPerPlaylist <= 0 {
 		cfg.MaxSongsPerPlaylist = 1000
+	}
+	if cfg.PlaylistWindowThreshold <= 0 {
+		cfg.PlaylistWindowThreshold = DefaultPlaylistWindowThreshold
 	}
 	if cfg.PlaybackSaveInterval <= 0 {
 		cfg.PlaybackSaveInterval = 5
