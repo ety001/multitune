@@ -138,11 +138,24 @@ input:focus,
   /* 封面图铺满容器后，圆角外的角不被图片戳穿 */
   overflow: hidden;
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  text-align: center;
-  line-height: 150px;
   font-size: 60px;
   color: #fff;
   box-shadow: 0 8px 32px rgba(99, 102, 241, 0.25);
+  /* 占位音符用绝对定位居中（见 .player-cover i） */
+  position: relative;
+}
+
+/* 占位音符居中：不能用 line-height + 基线对齐——FontAwesome 字体自带
+   line-height:1，其 ascent/descent 与父级字体不一致，图标会整体下沉
+   （实测窄屏下偏移约 20% 容器高度；≤480px 时容器 120px 而 line-height
+   仍是 150px，偏差更大）。绝对定位 + translate 与字体度量无关。
+   有封面图时 JS 会用 img 整体替换 i，不受本规则影响。 */
+.player-cover i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  -webkit-transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%);
 }
 
 .player-title {
@@ -200,12 +213,21 @@ input:focus,
   color: #fff;
   font-size: 24px;
   cursor: pointer;
-  text-align: center;
-  line-height: 64px;
+  /* 图标绝对定位居中（见下方 i 规则），清掉 UA 默认 padding */
+  padding: 0;
+  position: relative;
 }
 
+/* 图标居中：不能用 line-height + vertical-align:middle——FontAwesome
+   字体自带 line-height:1，其字体度量与父级 strut 不一致，图标会整体
+   下沉（车机实测向下偏 ~3px/48px 按钮，大按钮更多）。改用绝对定位 +
+   translate(-50%,-50%)，只依赖按钮的几何尺寸，与字体无关。 */
 .player-control-btn i {
-  vertical-align: middle;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  -webkit-transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%);
 }
 
 .player-control-btn:active {
@@ -216,7 +238,6 @@ input:focus,
   width: 84px;
   height: 84px;
   font-size: 32px;
-  line-height: 84px;
 }
 
 /* 进度条 */
@@ -547,7 +568,6 @@ input:focus,
   .player-control-btn {
     width: 56px;
     height: 56px;
-    line-height: 56px;
     margin: 0 8px;
     font-size: 20px;
   }
@@ -555,7 +575,6 @@ input:focus,
   .player-control-btn.large {
     width: 72px;
     height: 72px;
-    line-height: 72px;
     font-size: 26px;
   }
 }
@@ -765,14 +784,12 @@ input:focus,
   .player-control-btn {
     width: 48px;
     height: 48px;
-    line-height: 48px;
     margin: 0 4px;
     font-size: 18px;
   }
   .player-control-btn.large {
     width: 60px;
     height: 60px;
-    line-height: 60px;
     font-size: 22px;
   }
 
