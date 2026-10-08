@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -91,7 +92,8 @@ type DirEntry struct {
 	Size    int64  `json:"size,omitempty"`
 }
 
-// ListDirectory 列出目录内容
+// ListDirectory 列出目录内容，条目按文件名自然顺序排序（数字段按数值比较，
+// "2" 排在 "10" 之前）
 func ListDirectory(path string) ([]DirEntry, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -126,6 +128,10 @@ func ListDirectory(path string) ([]DirEntry, error) {
 		}
 		items = append(items, item)
 	}
+
+	slices.SortFunc(items, func(a, b DirEntry) int {
+		return CompareNatural(a.Name, b.Name)
+	})
 
 	return items, nil
 }
