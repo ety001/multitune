@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -144,25 +145,39 @@ func (s *Scanner) scanPathWithProgress(path string, result *ScanResult, current 
 		return s.scanFile(path, result)
 	}
 
-	return filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
+	// 先收集全部文件再按自然顺序处理，保证歌单导入顺序符合
+	// 1, 2, ..., 9, 10, 11 的数字直觉（filepath.Walk 自身是字典序）
+	var files []string
+	err = filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			slog.Warn("扫描路径失败", "path", filePath, "error", err)
 			return nil
 		}
-		if info.IsDir() {
-			return nil
+		if !info.IsDir() {
+			files = append(files, filePath)
 		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("遍历目录失败: %w", err)
+	}
 
+	slices.SortFunc(files, fsutil.CompareNatural)
+
+	for _, filePath := range files {
 		*current++
 		if progress != nil {
 			progress(*current, total)
 		}
 
 		if !fsutil.IsAudioFile(filePath) {
-			return nil
+			continue
 		}
-		return s.scanFile(filePath, result)
-	})
+		if err := s.scanFile(filePath, result); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // scanFile 扫描单个文件

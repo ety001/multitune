@@ -56,6 +56,56 @@ func TestListDirectory(t *testing.T) {
 	}
 }
 
+func TestListDirectoryNaturalOrder(t *testing.T) {
+	dir := t.TempDir()
+	names := []string{
+		"10.冰雪奇缘·10·向北山出发.mp3",
+		"11.冰雪奇缘·11·到达北山.mp3",
+		"12.冰雪奇缘·12·再次受伤的安娜.mp3",
+		"1.【试听】冰雪奇缘·01.mp3",
+		"2.【试听】冰雪奇缘·02·安娜得救了.mp3",
+		"3.冰雪奇缘·03·寂静的城堡.mp3",
+		"9.冰雪奇缘·09.mp3",
+	}
+	for _, name := range names {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("dummy"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "子目录"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := ListDirectory(dir)
+	if err != nil {
+		t.Fatalf("ListDirectory failed: %v", err)
+	}
+
+	got := make([]string, 0, len(items))
+	for _, item := range items {
+		got = append(got, item.Name)
+	}
+	want := []string{
+		"1.【试听】冰雪奇缘·01.mp3",
+		"2.【试听】冰雪奇缘·02·安娜得救了.mp3",
+		"3.冰雪奇缘·03·寂静的城堡.mp3",
+		"9.冰雪奇缘·09.mp3",
+		"10.冰雪奇缘·10·向北山出发.mp3",
+		"11.冰雪奇缘·11·到达北山.mp3",
+		"12.冰雪奇缘·12·再次受伤的安娜.mp3",
+		"子目录",
+	}
+
+	if len(got) != len(want) {
+		t.Fatalf("条目数 = %d, want %d, got = %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("排序结果不符:\n got = %v\nwant = %v", got, want)
+		}
+	}
+}
+
 func TestIsPathAllowed(t *testing.T) {
 	roots := []string{"/lzcapp/media", "/lzcapp/document/alice"}
 

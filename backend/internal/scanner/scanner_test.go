@@ -167,6 +167,77 @@ func TestScanner_ScanDirectory(t *testing.T) {
 	}
 }
 
+func TestScanner_ScanDirectoryNaturalOrder(t *testing.T) {
+	scanner, mediaRoot := newTestScanner(t)
+	sourceDir := filepath.Join(mediaRoot, "usb", "songs")
+	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	// 故意按字典序创建，模拟真实目录里的编号文件
+	names := []string{
+		"10.冰雪奇缘·10·向北山出发.mp3",
+		"11.冰雪奇缘·11·到达北山.mp3",
+		"1.【试听】冰雪奇缘·01.mp3",
+		"2.【试听】冰雪奇缘·02·安娜得救了.mp3",
+		"3.冰雪奇缘·03·寂静的城堡.mp3",
+	}
+	for _, name := range names {
+		if err := os.WriteFile(filepath.Join(sourceDir, name), []byte("dummy"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	result, err := scanner.ScanPath(sourceDir)
+	if err != nil {
+		t.Fatalf("ScanPath failed: %v", err)
+	}
+	if len(result.Songs) != len(names) {
+		t.Fatalf("songs count = %d, want %d", len(result.Songs), len(names))
+	}
+
+	want := []string{
+		"1.【试听】冰雪奇缘·01.mp3",
+		"2.【试听】冰雪奇缘·02·安娜得救了.mp3",
+		"3.冰雪奇缘·03·寂静的城堡.mp3",
+		"10.冰雪奇缘·10·向北山出发.mp3",
+		"11.冰雪奇缘·11·到达北山.mp3",
+	}
+	for i, song := range result.Songs {
+		if got := filepath.Base(song.Path); got != want[i] {
+			t.Fatalf("第 %d 首 = %s, want %s（songs 顺序应按自然数字序）", i+1, got, want[i])
+		}
+	}
+}
+
+func TestScanner_ScanSubDirectoriesNaturalOrder(t *testing.T) {
+	scanner, mediaRoot := newTestScanner(t)
+	sourceDir := filepath.Join(mediaRoot, "usb", "albums")
+	// 子目录名带编号：CD10 应排在 CD2 之后
+	for _, cd := range []string{"CD1", "CD2", "CD10"} {
+		if err := os.MkdirAll(filepath.Join(sourceDir, cd), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(sourceDir, cd, "song.mp3"), []byte("dummy"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	result, err := scanner.ScanPath(sourceDir)
+	if err != nil {
+		t.Fatalf("ScanPath failed: %v", err)
+	}
+	if len(result.Songs) != 3 {
+		t.Fatalf("songs count = %d, want 3", len(result.Songs))
+	}
+
+	want := []string{"CD1", "CD2", "CD10"}
+	for i, song := range result.Songs {
+		if got := filepath.Base(filepath.Dir(song.Path)); got != want[i] {
+			t.Fatalf("第 %d 首所在目录 = %s, want %s（子目录也应按自然序）", i+1, got, want[i])
+		}
+	}
+}
+
 func TestScanner_InferSource(t *testing.T) {
 	scanner, mediaRoot := newTestScanner(t)
 
