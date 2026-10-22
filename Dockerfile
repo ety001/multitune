@@ -19,7 +19,7 @@ COPY frontend ./
 RUN pnpm build
 
 # Stage 2: 构建 Go 后端
-FROM golang:1.24-alpine AS backend-builder
+FROM golang:1.27.3-alpine AS backend-builder
 WORKDIR /app/backend
 
 # 使用国内 Go 模块代理，避免默认 proxy.golang.org 超时
