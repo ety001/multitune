@@ -1,0 +1,13 @@
+{
+  "name": "多音盒",
+  "short_name": "多音盒",
+  "start_url": "/car/player.html",
+  "scope": "/car/",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#4a90e2",
+  "icons": [
+    { "src": "/car/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/car/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
