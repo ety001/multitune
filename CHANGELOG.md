@@ -2,6 +2,13 @@
 
 本文件记录多音盒 MultiTune 的版本变更。各版本详情见 [GitHub Releases](https://github.com/ety001/multitune/releases)。
 
+## v0.0.10（2026-10-24）
+
+车机版「添加到主屏幕」图标与 PWA 元信息补全。
+
+- **主屏幕图标**：web/car 全部页面（index/player/playlist/logs）补充 apple-touch-icon（180px PNG）与 apple-mobile-web-app-* metas，修复 iOS「添加到主屏幕」后图标空白
+- **Android/PWA**：新增 manifest.json（name/short_name/start_url/icons 192px）、theme-color、mobile-web-app-capable，Android 桌面快捷方式同样有图标并以独立窗口打开
+
 ## v0.0.9（2026-10-08）
 
 文件浏览器与歌单导入的自然数字顺序排序修复。
